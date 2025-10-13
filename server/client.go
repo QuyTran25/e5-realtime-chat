@@ -3,75 +3,91 @@
 package main
 
 import (
+	"bytes"
 	"log"
 	"time"
 
 	"github.com/gorilla/websocket"
 )
 
+// các hằng số cấu hình cho việc đọc/ghi message
+// cần đặt timeout và tần suất ping/pong
 const (
-	// Time allowed to write a message to the peer.
-	writeWait = 10 * time.Second
-
-	// Time allowed to read the next pong message from the peer.
-	pongWait = 60 * time.Second
-
-	// Send pings to peer with this period. Must be less than pongWait.
-	pingPeriod = (pongWait * 9) / 10
-
-	// Maximum message size allowed from peer.
-	maxMessageSize = 512
+	writeWait = 10 * time.Second      // thời gian tối đa để ghi message xuống client
+	pongWait = 60 * time.Second       // thời gian chờ nhận pong từ client
+	pingPeriod = (pongWait * 9) / 10  // gửi ping đều đặn để giữ kết nối
+	maxMessageSize = 512              // giới hạn kích thước message
 )
+
 
 var (
 	newline = []byte{'\n'}
 	space   = []byte{' '}
 )
 
-// Client is a middleman between the websocket connection and the hub.
+// Định nghĩa struct Client
+// Một Client đại diện cho một kết nối websocket tới một user cụ thể
+// Nó sẽ đọc tin nhắn từ kết nối và gửi tin nhắn từ Hub xuống kết nối
 type Client struct {
-	hub *Hub
-
-	// The websocket connection.
-	conn *websocket.Conn
-
-	// Buffered channel of outbound messages.
-	send chan []byte
+	hub  *Hub              // tham chiếu tới Hub (quản lý chung)
+	conn *websocket.Conn   // kết nối websocket thật sự
+	send chan []byte       // kênh để nhận tin nhắn từ Hub và gửi xuống client
 }
 
-// readPump pumps messages from the websocket connection to the hub.
+
+// Hàm readPump() – Đọc tin nhắn từ Client
+// Hàm này chạy ở 1 goroutine riêng. Nó:
+// Liên tục đọc message từ client.
+// Khi đọc được message → gửi message đó vào hub.broadcast.
+// Nếu client ngắt kết nối hoặc lỗi → unregister client.
 func (c *Client) readPump() {
 	defer func() {
-		c.hub.unregister <- c
+		c.hub.unregister <- c // thông báo Hub biết client rời đi
 		c.conn.Close()
 	}()
+
 	c.conn.SetReadLimit(maxMessageSize)
 	c.conn.SetReadDeadline(time.Now().Add(pongWait))
-	c.conn.SetPongHandler(func(string) error { c.conn.SetReadDeadline(time.Now().Add(pongWait)); return nil })
+	c.conn.SetPongHandler(func(string) error {
+		c.conn.SetReadDeadline(time.Now().Add(pongWait))
+		return nil
+	})
+
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
-				log.Printf("error: %v", err)
+				log.Printf("❌ lỗi đọc message: %v", err)
 			}
 			break
 		}
+
+		// làm sạch message
+		message = bytes.TrimSpace(bytes.Replace(message, []byte("\n"), []byte(" "), -1))
+
+		// gửi message tới Hub để broadcast
 		c.hub.broadcast <- message
 	}
 }
 
-// writePump pumps messages from the hub to the websocket connection.
+// Hàm writePump() – Gửi tin nhắn tới Client
+// Hàm này chạy ở 1 goroutine riêng. Nó:
+// Liên tục lắng nghe kênh c.send để gửi tin nhắn tới client.
+// Gửi tin ping định kỳ để giữ kết nối.
+// Nếu kênh c.send bị đóng hoặc lỗi khi gửi tin nhắn → đóng kết nối.
 func (c *Client) writePump() {
 	ticker := time.NewTicker(pingPeriod)
 	defer func() {
 		ticker.Stop()
 		c.conn.Close()
 	}()
+
 	for {
 		select {
 		case message, ok := <-c.send:
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
+				// channel bị đóng => đóng kết nối
 				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
 				return
 			}
@@ -82,17 +98,19 @@ func (c *Client) writePump() {
 			}
 			w.Write(message)
 
-			// Add queued chat messages to the current websocket message.
+			// gửi các tin trong queue còn lại trong channel (nếu có)
 			n := len(c.send)
 			for i := 0; i < n; i++ {
-				w.Write(newline)
+				w.Write([]byte{'\n'})
 				w.Write(<-c.send)
 			}
 
 			if err := w.Close(); err != nil {
 				return
 			}
+
 		case <-ticker.C:
+			// Gửi ping để giữ kết nối
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				return
