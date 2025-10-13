@@ -1,46 +1,45 @@
-// Quản lý danh sách client + broadcast
-// TEMPORARY STUB - Will be properly implemented by Người 1 + 2
 package main
 
-// Hub maintains the set of active clients and broadcasts messages to the clients.
+//// Hub quản lý tất cả client đang kết nối và phân phối tin nhắn giữa họ
 type Hub struct {
-	// Registered clients.
-	clients map[*Client]bool
-
-	// Inbound messages from the clients.
-	broadcast chan []byte
-
-	// Register requests from the clients.
-	register chan *Client
-
-	// Unregister requests from clients.
+	clients    map[*Client]bool
+	broadcast  chan []byte
+	register   chan *Client
 	unregister chan *Client
 }
 
+//Newhub khởi tạo 1 hub mới
 func NewHub() *Hub {
 	return &Hub{
+		clients:    make(map[*Client]bool),
 		broadcast:  make(chan []byte),
 		register:   make(chan *Client),
 		unregister: make(chan *Client),
-		clients:    make(map[*Client]bool),
 	}
 }
 
+//// run() chạy liên tục, xử lý các sự kiện từ các channel
 func (h *Hub) run() {
 	for {
 		select {
 		case client := <-h.register:
+			//thêm client mới vào danh sách
 			h.clients[client] = true
+
 		case client := <-h.unregister:
+			//xóa client khi ngắt kết nối
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
 			}
+
 		case message := <-h.broadcast:
+			//gửi tin nhắn tới tất cả clients
 			for client := range h.clients {
 				select {
 				case client.send <- message:
 				default:
+					// Nếu không gửi được → đóng kết nối client
 					close(client.send)
 					delete(h.clients, client)
 				}
