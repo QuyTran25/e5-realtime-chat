@@ -1,1 +1,52 @@
 # Hạ tầng, test
+version: "3.8"
+
+services:
+  server:
+    build:
+      context: ..
+      dockerfile: server/Dockerfile
+    image: e5-realtime-server:latest
+    container_name: e5-server
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - PORT=8080
+    networks:
+      - e5-net
+
+  client:
+    image: nginx:alpine
+    container_name: e5-client
+    volumes:
+      - ../client/html:/usr/share/nginx/html
+      - ../client/assets:/usr/share/nginx/html/assets:ro
+    ports:
+      - "3000:80"
+    depends_on:
+      - server
+    networks:
+      - e5-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: e5-redis
+    restart: unless-stopped
+    networks:
+      - e5-net
+
+  # optional k6 runner as service (useful for CI)
+  k6:
+    image: loadimpact/k6
+    container_name: e5-k6
+    working_dir: /scripts
+    volumes:
+      - ../infra:/scripts:ro
+    entrypoint: ["k6", "run", "/scripts/k6-script.js"]
+    networks:
+      - e5-net
+
+networks:
+  e5-net:
+    driver: bridge
