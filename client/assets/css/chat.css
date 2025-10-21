@@ -457,20 +457,49 @@
 
 /* Search Results */
 .search-result-item {
-    display: flex;
-    align-items: center;
-    padding: 12px 16px;
-    background: white;
-    border-radius: 8px;
-    margin-bottom: 8px;
-    cursor: pointer;
-    transition: all 0.2s;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  display: flex;
+  align-items: center;
+  background: #fff;
+  border-radius: 12px;
+  padding: 10px 15px;
+  margin-bottom: 10px;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  transition: 0.2s;
+}
+.search-result-item:hover {
+  background-color: #f7f7f7;
 }
 
-.search-result-item:hover {
-    transform: translateY(-1px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+.result-avatar img {
+  width: 50px;
+  height: 50px;
+  border-radius: 50%;
+}
+
+.result-info {
+  flex: 1;
+  margin-left: 12px;
+}
+
+.result-info h4 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.add-friend-btn {
+  background-color: #007bff;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 10px;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background 0.2s;
+}
+
+.add-friend-btn:hover {
+  background-color: #0056b3;
 }
 
 /* Responsive Design */

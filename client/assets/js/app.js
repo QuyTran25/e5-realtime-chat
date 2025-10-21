@@ -101,7 +101,7 @@ function initializeConnectionStatus() {
 
 function initializeDemoData() {
     // Demo conversations
-    const demoConversations = [
+    /*const demoConversations = [
         {
             id: 1,
             name: 'Nguyễn Văn A',
@@ -129,7 +129,7 @@ function initializeDemoData() {
             unread: 0,
             online: true
         }
-    ];
+    ];*/
     
     // Demo friend requests
     const demoFriendRequests = [
@@ -321,9 +321,41 @@ function declineFriendRequest(id) {
 }
 
 function startChat(friendId) {
-    // Switch to messages section and start chat
+    // Tìm bạn trong danh sách friends demo
+    const allFriends = [
+        {
+            id: 1,
+            name: 'Nguyễn Văn A',
+            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM0QThGNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
+            status: 'Đang hoạt động',
+            online: true
+        },
+        {
+            id: 2,
+            name: 'Trần Thị B',
+            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0VGNDQ0NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
+            status: 'Offline 2 giờ trước',
+            online: false
+        }
+    ];
+
+    const friend = allFriends.find(f => f.id === friendId);
+    if (!friend) return;
+
+    // Chuyển sang tab "Messages"
     document.querySelector('[data-section="messages"]').click();
-    showNotification('Đã mở cuộc trò chuyện!');
+
+    // Giả lập mở đoạn chat
+    openChat({
+        id: friend.id,
+        name: friend.name,
+        avatar: friend.avatar,
+        lastMessage: 'Bắt đầu cuộc trò chuyện mới với ' + friend.name,
+        online: friend.online
+    });
+
+    // Hiển thị thông báo nhỏ
+    showNotification(`Đang trò chuyện với ${friend.name}`);
 }
 
 function viewProfile(userId) {

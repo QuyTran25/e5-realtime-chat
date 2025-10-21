@@ -47,6 +47,7 @@ func serveWs(hub *Hub, w http.ResponseWriter, r *http.Request) {
 	client.readPump()
 }
 
+
 func main() {
 	hub := NewHub()
 	go hub.run()
@@ -58,6 +59,9 @@ func main() {
 		w.WriteHeader(http.StatusOK)
 		_, _ = w.Write([]byte("ok"))
 	})
+
+	// 👉 Thêm dòng này để xử lý API danh sách bạn bè
+	http.HandleFunc("/api/friends", friendsHandler)
 
 	addr := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
