@@ -103,32 +103,37 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Helper functions
     function performLogin(email, password, remember) {
-        return new Promise((resolve, reject) => {
-            // Simulate API delay
-            setTimeout(() => {
-                // Demo authentication - replace with actual API call
-                if (email === 'demo@example.com' && password === 'password123') {
-                    resolve({
-                        success: true,
-                        user: {
-                            name: 'Demo User',
-                            email: email
-                        },
-                        token: 'demo-jwt-token-' + Date.now()
-                    });
-                } else if (email === 'admin@chat.com' && password === 'admin123') {
-                    resolve({
-                        success: true,
-                        user: {
-                            name: 'Admin',
-                            email: email
-                        },
-                        token: 'admin-jwt-token-' + Date.now()
-                    });
-                } else {
-                    reject(new Error('Email hoặc mật khẩu không chính xác'));
-                }
-            }, 1500);
+        // Call actual backend API
+        return fetch('http://localhost:8080/api/auth/login', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                email: email,
+                password: password
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                return {
+                    success: true,
+                    user: {
+                        id: data.user.id,
+                        name: data.user.username,
+                        email: data.user.email,
+                        avatar: data.user.avatar_url
+                    },
+                    token: data.token
+                };
+            } else {
+                throw new Error(data.message || 'Đăng nhập thất bại');
+            }
+        })
+        .catch(error => {
+            console.error('Login error:', error);
+            throw error;
         });
     }
 

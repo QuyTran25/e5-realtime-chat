@@ -13,12 +13,11 @@ import (
 // các hằng số cấu hình cho việc đọc/ghi message
 // cần đặt timeout và tần suất ping/pong
 const (
-	writeWait = 10 * time.Second      // thời gian tối đa để ghi message xuống client
-	pongWait = 60 * time.Second       // thời gian chờ nhận pong từ client
-	pingPeriod = (pongWait * 9) / 10  // gửi ping đều đặn để giữ kết nối
-	maxMessageSize = 512              // giới hạn kích thước message
+	writeWait      = 10 * time.Second    // thời gian tối đa để ghi message xuống client
+	pongWait       = 60 * time.Second    // thời gian chờ nhận pong từ client
+	pingPeriod     = (pongWait * 9) / 10 // gửi ping đều đặn để giữ kết nối
+	maxMessageSize = 512                 // giới hạn kích thước message
 )
-
 
 var (
 	newline = []byte{'\n'}
@@ -29,11 +28,12 @@ var (
 // Một Client đại diện cho một kết nối websocket tới một user cụ thể
 // Nó sẽ đọc tin nhắn từ kết nối và gửi tin nhắn từ Hub xuống kết nối
 type Client struct {
-	hub  *Hub              // tham chiếu tới Hub (quản lý chung)
-	conn *websocket.Conn   // kết nối websocket thật sự
-	send chan []byte       // kênh để nhận tin nhắn từ Hub và gửi xuống client
+	hub      *Hub            // tham chiếu tới Hub (quản lý chung)
+	conn     *websocket.Conn // kết nối websocket thật sự
+	send     chan []byte     // kênh để nhận tin nhắn từ Hub và gửi xuống client
+	userID   int             // ID của user đang kết nối
+	username string          // Tên của user đang kết nối
 }
-
 
 // Hàm readPump() – Đọc tin nhắn từ Client
 // Hàm này chạy ở 1 goroutine riêng. Nó:

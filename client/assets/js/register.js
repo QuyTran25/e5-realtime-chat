@@ -102,24 +102,36 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // Helper functions
     function performRegistration(fullName, email, password) {
-        return new Promise((resolve, reject) => {
-            // Simulate API delay
-            setTimeout(() => {
-                // Demo registration - replace with actual API call
-                const existingEmails = ['test@example.com', 'admin@example.com'];
-                
-                if (existingEmails.includes(email.toLowerCase())) {
-                    reject(new Error('Email này đã được sử dụng'));
-                } else {
-                    resolve({
-                        success: true,
-                        user: {
-                            name: fullName,
-                            email: email
-                        }
-                    });
-                }
-            }, 2000);
+        // Call actual backend API
+        return fetch('http://localhost:8080/api/auth/register', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                username: fullName,
+                email: email,
+                password: password
+            })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                return {
+                    success: true,
+                    user: {
+                        id: data.user.id,
+                        name: data.user.username,
+                        email: data.user.email
+                    }
+                };
+            } else {
+                throw new Error(data.message || 'Đăng ký thất bại');
+            }
+        })
+        .catch(error => {
+            console.error('Registration error:', error);
+            throw error;
         });
     }
 
