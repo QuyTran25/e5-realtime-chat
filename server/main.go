@@ -137,6 +137,9 @@ func main() {
 	authService := Auth.NewAuthService(db)
 	authHandler := Auth.NewHandler(authService)
 
+	// Initialize friends service
+	friendsService = NewFriendsService(db)
+
 	// Create hub
 	hub := NewHub()
 	go hub.run()
@@ -160,6 +163,11 @@ func main() {
 
 	// Friends API (protected)
 	mux.HandleFunc("/api/friends", Auth.AuthMiddleware(friendsHandler))
+	mux.HandleFunc("/api/friends/search", Auth.AuthMiddleware(searchUsersHandler))
+	mux.HandleFunc("/api/friends/request", Auth.AuthMiddleware(sendFriendRequestHandler))
+	mux.HandleFunc("/api/friends/requests", Auth.AuthMiddleware(getFriendRequestsHandler))
+	mux.HandleFunc("/api/friends/accept", Auth.AuthMiddleware(acceptFriendRequestHandler))
+	mux.HandleFunc("/api/friends/reject", Auth.AuthMiddleware(rejectFriendRequestHandler))
 
 	addr := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
@@ -171,6 +179,8 @@ func main() {
 	log.Printf("🔐 Auth API: http://localhost%s/api/auth/", addr)
 	log.Printf("💚 Health check: http://localhost%s/healthz", addr)
 	log.Printf("👥 Friends API: http://localhost%s/api/friends", addr)
+	log.Printf("🔍 Search API: http://localhost%s/api/friends/search?q=keyword", addr)
+	log.Printf("📨 Friend Requests: http://localhost%s/api/friends/requests", addr)
 	log.Printf("🎯 Server starting on %s", addr)
 
 	if err := http.ListenAndServe(addr, mux); err != nil {
