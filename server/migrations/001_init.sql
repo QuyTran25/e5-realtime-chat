@@ -238,9 +238,9 @@ ON CONFLICT (room_name) DO NOTHING;
 
 -- Sample users (for testing only)
 INSERT INTO users (username, email, password_hash, avatar_url) VALUES
-    ('admin', 'admin@chat.com', '$2a$10$rGHQxKdV4nP/0y3eZ1234567890abcdefghijklmnopqrstuvwxyz', 'https://i.pravatar.cc/150?img=1'),
-    ('alice', 'alice@chat.com', '$2a$10$rGHQxKdV4nP/0y3eZ1234567890abcdefghijklmnopqrstuvwxyz', 'https://i.pravatar.cc/150?img=2'),
-    ('bob', 'bob@chat.com', '$2a$10$rGHQxKdV4nP/0y3eZ1234567890abcdefghijklmnopqrstuvwxyz', 'https://i.pravatar.cc/150?img=3')
+    ('admin', 'admin@chat.com', '$2a$10$gRvWmIQ7jfGOsb9NiNHA7uOA3tKCJZc.LSTqMHjGSv86JW0YwHjYe', 'https://i.pravatar.cc/150?img=1'),
+    ('alice', 'alice@chat.com', '$2a$10$gRvWmIQ7jfGOsb9NiNHA7uOA3tKCJZc.LSTqMHjGSv86JW0YwHjYe', 'https://i.pravatar.cc/150?img=2'),
+    ('bob', 'bob@chat.com', '$2a$10$gRvWmIQ7jfGOsb9NiNHA7uOA3tKCJZc.LSTqMHjGSv86JW0YwHjYe', 'https://i.pravatar.cc/150?img=3')
 ON CONFLICT (username) DO NOTHING;
 
 -- Sample friendships
@@ -322,3 +322,48 @@ BEGIN
     RAISE NOTICE '   - Users/Friendships: Auto-update updated_at timestamp';
     RAISE NOTICE '============================================';
 END $$;
+
+-- Xóa dữ liệu cũ (nếu có)
+DELETE FROM messages;
+DELETE FROM friendships;
+DELETE FROM users WHERE username IN ('nguyenvana', 'tranthib');
+
+-- Thêm 2 người dùng (không chỉ định id, để SERIAL tự tăng)
+INSERT INTO users (username, email, password_hash, avatar_url, created_at, updated_at, last_seen_at, is_online) VALUES
+('nguyenvana', 'vana@email.com', '$2a$10$gRvWmIQ7jfGOsb9NiNHA7uOA3tKCJZc.LSTqMHjGSv86JW0YwHjYe', 'https://i.pravatar.cc/150?img=1', '2024-01-15 10:00:00', '2024-01-15 10:00:00', '2024-10-30 14:30:00', true),
+('tranthib', 'thib@email.com', '$2a$10$gRvWmIQ7jfGOsb9NiNHA7uOA3tKCJZc.LSTqMHjGSv86JW0YwHjYe', 'https://i.pravatar.cc/150?img=2', '2024-02-20 11:30:00', '2024-02-20 11:30:00', '2024-10-30 15:00:00', true);
+
+-- Thêm quan hệ bạn bè (2 người đã kết bạn)
+-- Lấy id của 2 user vừa tạo
+INSERT INTO friendships (user_id, friend_id, status, created_at, updated_at) 
+SELECT u1.id, u2.id, 'accepted', '2024-03-10 09:00:00', '2024-03-10 09:30:00'
+FROM users u1, users u2
+WHERE u1.username = 'nguyenvana' AND u2.username = 'tranthib';
+
+-- Không thêm tin nhắn nào giữa 2 người
+-- Bảng messages để trống cho 2 người này
+
+-- Kiểm tra dữ liệu
+SELECT 'Users' as table_name, COUNT(*) as count FROM users
+UNION ALL
+SELECT 'Friendships', COUNT(*) FROM friendships
+UNION ALL
+SELECT 'Messages', COUNT(*) FROM messages;
+
+-- Xem chi tiết người dùng
+SELECT id, username, email, avatar_url, is_online, last_seen_at FROM users 
+WHERE username IN ('nguyenvana', 'tranthib');
+
+-- Xem quan hệ bạn bè
+SELECT 
+    f.id as friendship_id,
+    u1.username as user_1,
+    u2.username as user_2,
+    f.status,
+    f.created_at
+FROM friendships f
+JOIN users u1 ON f.user_id = u1.id
+JOIN users u2 ON f.friend_id = u2.id
+WHERE u1.username IN ('nguyenvana', 'tranthib') 
+   OR u2.username IN ('nguyenvana', 'tranthib')
+ORDER BY f.created_at;
