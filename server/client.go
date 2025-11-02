@@ -4,6 +4,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -65,8 +66,43 @@ func (c *Client) readPump() {
 		// làm sạch message
 		message = bytes.TrimSpace(bytes.Replace(message, []byte("\n"), []byte(" "), -1))
 
-		// gửi message tới Hub để broadcast
-		c.hub.broadcast <- message
+		// Parse message to check if it's a direct message
+		var wsMsg WSMessage
+		if err := json.Unmarshal(message, &wsMsg); err == nil {
+			// Add sender info
+			wsMsg.FromUserID = c.userID
+			wsMsg.From = c.username
+
+			// Re-encode message with sender info
+			enhancedMsg, err := json.Marshal(wsMsg)
+			if err == nil {
+				message = enhancedMsg
+			}
+
+			// Save message to database if it's a chat message
+			if wsMsg.Type == "message" && wsMsg.Text != "" {
+				if wsMsg.ToUserID > 0 {
+					// Private message - save to database
+					if err := SaveMessageToDB(c.userID, wsMsg.ToUserID, wsMsg.Text); err != nil {
+						log.Printf("❌ Error saving message to DB: %v", err)
+					}
+				}
+			}
+
+			// Check if this is a direct message
+			if wsMsg.ToUserID > 0 {
+				// Send to specific user
+				c.hub.SendDirectMessage(message, wsMsg.ToUserID)
+				// Also send back to sender for confirmation
+				c.send <- message
+			} else {
+				// Broadcast to all
+				c.hub.SendBroadcast(message)
+			}
+		} else {
+			// If parse fails, broadcast as before
+			c.hub.broadcast <- message
+		}
 	}
 }
 

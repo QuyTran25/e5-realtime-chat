@@ -9,6 +9,7 @@ import (
 type contextKey string
 
 const UserContextKey contextKey = "user"
+const UserIDKey contextKey = "userID"
 
 // AuthMiddleware validates JWT token and adds user to context
 func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
@@ -61,8 +62,9 @@ func AuthMiddleware(next http.HandlerFunc) http.HandlerFunc {
 			return
 		}
 
-		// Add claims to context
+		// Add claims and userID to context
 		ctx := context.WithValue(r.Context(), UserContextKey, claims)
+		ctx = context.WithValue(ctx, UserIDKey, claims.UserID)
 		next.ServeHTTP(w, r.WithContext(ctx))
 	}
 }

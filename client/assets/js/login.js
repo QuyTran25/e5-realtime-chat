@@ -57,8 +57,11 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (response.success) {
                     // Store user session
                     const userData = {
+                        id: response.user.id,
                         email: email,
-                        name: response.user.name || 'User',
+                        name: response.user.username || response.user.name || 'User',
+                        username: response.user.username,
+                        avatar: response.user.avatar_url || '',
                         token: response.token,
                         loginTime: new Date().toISOString()
                     };

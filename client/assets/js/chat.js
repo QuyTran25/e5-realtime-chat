@@ -378,5 +378,14 @@ document.addEventListener("DOMContentLoaded", function () {
     welcomeMsg.style.color = "gray";
     welcomeMsg.textContent = `💬 Đang trò chuyện với ${user.name || user.username}`;
     chatMessages.appendChild(welcomeMsg);
+
+    // 🔥 GỌI setActiveConversation từ websocket.js để thiết lập chat riêng tư
+    if (typeof window.setActiveConversation === 'function') {
+      window.setActiveConversation({
+        id: user.id,
+        name: user.name || user.username,
+        avatar: user.avatar || user.avatar_url
+      });
+    }
   }
 });

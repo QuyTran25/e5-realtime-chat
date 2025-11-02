@@ -9,10 +9,14 @@ import (
 	"strings"
 
 	"e5realtimechat/Auth"
+	"e5realtimechat/database"
 
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 )
+
+// Global database instance
+var db *database.DB
 
 // Message represents the JSON payload exchanged over WebSocket.
 // Examples:
@@ -122,23 +126,26 @@ func main() {
 	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
 		dbHost, dbPort, dbUser, dbPass, dbName)
 
-	db, err := sql.Open("postgres", dsn)
+	sqlDB, err := sql.Open("postgres", dsn)
 	if err != nil {
 		log.Fatal("❌ Failed to connect to database:", err)
 	}
-	defer db.Close()
+	defer sqlDB.Close()
 
-	if err := db.Ping(); err != nil {
+	if err := sqlDB.Ping(); err != nil {
 		log.Fatal("❌ Database ping failed:", err)
 	}
 	log.Println("✅ Connected to PostgreSQL database")
 
+	// Initialize database wrapper
+	db = database.NewDBFromConnection(sqlDB)
+
 	// Initialize auth service
-	authService := Auth.NewAuthService(db)
+	authService := Auth.NewAuthService(sqlDB)
 	authHandler := Auth.NewHandler(authService)
 
 	// Initialize friends service
-	friendsService = NewFriendsService(db)
+	friendsService = NewFriendsService(sqlDB)
 
 	// Create hub
 	hub := NewHub()
@@ -168,6 +175,10 @@ func main() {
 	mux.HandleFunc("/api/friends/requests", Auth.AuthMiddleware(getFriendRequestsHandler))
 	mux.HandleFunc("/api/friends/accept", Auth.AuthMiddleware(acceptFriendRequestHandler))
 	mux.HandleFunc("/api/friends/reject", Auth.AuthMiddleware(rejectFriendRequestHandler))
+
+	// Messages API (protected)
+	mux.HandleFunc("/api/messages/history", Auth.AuthMiddleware(getMessageHistoryHandler))
+	mux.HandleFunc("/api/conversations", Auth.AuthMiddleware(getConversationsHandler))
 
 	addr := ":8080"
 	if p := os.Getenv("PORT"); p != "" {

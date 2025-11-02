@@ -77,6 +77,11 @@ func NewDB(host, port, user, password, dbname string) (*DB, error) {
 	return &DB{conn: conn}, nil
 }
 
+// NewDBFromConnection creates a DB wrapper from existing sql.DB connection
+func NewDBFromConnection(conn *sql.DB) *DB {
+	return &DB{conn: conn}
+}
+
 // Close closes the database connection
 func (db *DB) Close() error {
 	return db.conn.Close()
@@ -421,4 +426,95 @@ func (db *DB) GetUserFriends(userID int) ([]*User, error) {
 	}
 
 	return friends, nil
+}
+
+// GetPrivateMessages gets private messages between two users (alias for GetDirectMessageHistory)
+func (db *DB) GetPrivateMessages(userID1, userID2, limit int) ([]*Message, error) {
+	return db.GetDirectMessageHistory(userID1, userID2, limit)
+}
+
+// Conversation represents a conversation summary
+type Conversation struct {
+	UserID        int       `json:"user_id"`
+	Username      string    `json:"username"`
+	AvatarURL     string    `json:"avatar_url"`
+	IsOnline      bool      `json:"is_online"`
+	LastMessage   string    `json:"last_message"`
+	LastMessageAt time.Time `json:"last_message_at"`
+	UnreadCount   int       `json:"unread_count"`
+}
+
+// GetUserConversations retrieves list of conversations for a user
+func (db *DB) GetUserConversations(userID int) ([]*Conversation, error) {
+	query := `
+		WITH recent_messages AS (
+			SELECT DISTINCT ON (
+				CASE 
+					WHEN from_user_id = $1 THEN to_user_id
+					ELSE from_user_id
+				END
+			)
+			CASE 
+				WHEN from_user_id = $1 THEN to_user_id
+				ELSE from_user_id
+			END as other_user_id,
+			message_text,
+			created_at,
+			is_read,
+			from_user_id
+			FROM messages
+			WHERE (from_user_id = $1 OR to_user_id = $1)
+			  AND to_user_id IS NOT NULL
+			ORDER BY 
+				CASE 
+					WHEN from_user_id = $1 THEN to_user_id
+					ELSE from_user_id
+				END,
+				created_at DESC
+		)
+		SELECT 
+			u.id,
+			u.username,
+			COALESCE(u.avatar_url, '') as avatar_url,
+			u.is_online,
+			rm.message_text,
+			rm.created_at,
+			COALESCE(
+				(SELECT COUNT(*) 
+				 FROM messages 
+				 WHERE from_user_id = u.id 
+				   AND to_user_id = $1 
+				   AND is_read = false),
+				0
+			) as unread_count
+		FROM recent_messages rm
+		JOIN users u ON u.id = rm.other_user_id
+		ORDER BY rm.created_at DESC
+	`
+
+	rows, err := db.conn.Query(query, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get conversations: %w", err)
+	}
+	defer rows.Close()
+
+	var conversations []*Conversation
+	for rows.Next() {
+		var conv Conversation
+		err := rows.Scan(
+			&conv.UserID,
+			&conv.Username,
+			&conv.AvatarURL,
+			&conv.IsOnline,
+			&conv.LastMessage,
+			&conv.LastMessageAt,
+			&conv.UnreadCount,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to scan conversation: %w", err)
+		}
+		conversations = append(conversations, &conv)
+	}
+
+	return conversations, nil
 }

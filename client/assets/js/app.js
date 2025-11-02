@@ -100,36 +100,8 @@ function initializeConnectionStatus() {
 }
 
 function initializeDemoData() {
-    // Demo conversations
-    /*const demoConversations = [
-        {
-            id: 1,
-            name: 'Nguyễn Văn A',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM0QThGNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            lastMessage: 'Chào bạn! Bạn có khỏe không?',
-            time: '10:30',
-            unread: 2,
-            online: true
-        },
-        {
-            id: 2,
-            name: 'Trần Thị B',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0VGNDQ0NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            lastMessage: 'Cảm ơn bạn nhiều!',
-            time: '09:15',
-            unread: 0,
-            online: false
-        },
-        {
-            id: 3,
-            name: 'Lê Văn C',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzEwQjk4MSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            lastMessage: 'Hẹn gặp lại!',
-            time: 'Hôm qua',
-            unread: 0,
-            online: true
-        }
-    ];*/
+    // Load conversations from API instead of demo data
+    loadConversationsFromAPI();
     
     // Demo friend requests
     const demoFriendRequests = [
@@ -165,8 +137,8 @@ function initializeDemoData() {
         }
     ];
     
-    // Render conversations
-    renderConversations(demoConversations);
+    // Render conversations - will be loaded from API
+    // renderConversations(demoConversations);
     
     // Render friend requests
     renderFriendRequests(demoFriendRequests);
@@ -177,6 +149,80 @@ function initializeDemoData() {
     // Setup search functionality
     setupSearch();
 }
+
+// Load conversations from API
+async function loadConversationsFromAPI() {
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!userData) return;
+
+    try {
+        const user = JSON.parse(userData);
+        const response = await fetch('http://localhost:8080/api/conversations', {
+            headers: {
+                'Authorization': `Bearer ${user.token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load conversations');
+        }
+
+        const data = await response.json();
+        if (data.success && data.conversations) {
+            renderConversations(data.conversations.map(conv => {
+                // Get unread count from WebSocket tracking
+                const unreadCount = window.getUnreadCount ? window.getUnreadCount(conv.user_id) : 0;
+                
+                return {
+                    id: conv.user_id,
+                    name: conv.username,
+                    avatar: conv.avatar_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzZCNzI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
+                    lastMessage: conv.last_message,
+                    time: formatTime(conv.last_message_at),
+                    unread: unreadCount,
+                    online: conv.is_online
+                };
+            }));
+        }
+    } catch (error) {
+        console.error('❌ Error loading conversations:', error);
+    }
+}
+
+// Format time for display
+function formatTime(dateString) {
+    const date = new Date(dateString);
+    const now = new Date();
+    const diff = now - date;
+    
+    // Less than 1 minute
+    if (diff < 60000) {
+        return 'Vừa xong';
+    }
+    
+    // Less than 1 hour
+    if (diff < 3600000) {
+        return Math.floor(diff / 60000) + ' phút trước';
+    }
+    
+    // Today
+    if (date.toDateString() === now.toDateString()) {
+        return date.toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
+    }
+    
+    // Yesterday
+    const yesterday = new Date(now);
+    yesterday.setDate(yesterday.getDate() - 1);
+    if (date.toDateString() === yesterday.toDateString()) {
+        return 'Hôm qua';
+    }
+    
+    // Older
+    return date.toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' });
+}
+
+// Update conversation list (called after sending/receiving message)
+window.updateConversationList = loadConversationsFromAPI;
 
 function renderConversations(conversations) {
     const conversationsList = document.getElementById('conversationsList');
@@ -276,6 +322,15 @@ function setupSearch() {
 }
 
 function openChat(conversation) {
+    // Set active conversation for WebSocket
+    if (window.setActiveConversation) {
+        window.setActiveConversation({
+            id: conversation.id,
+            name: conversation.name,
+            avatar: conversation.avatar
+        });
+    }
+    
     // Update chat header
     document.getElementById('chatUserName').textContent = conversation.name;
     document.getElementById('chatUserStatus').textContent = conversation.online ? 'Đang hoạt động' : 'Offline';
@@ -284,23 +339,7 @@ function openChat(conversation) {
     // Show chat input
     document.getElementById('chatInputContainer').style.display = 'block';
     
-    // Hide welcome message and show demo messages
-    const chatMessages = document.getElementById('chatMessages');
-    chatMessages.innerHTML = `
-        <div class="message">
-            <img src="${conversation.avatar}" alt="${conversation.name}" class="message-avatar">
-            <div class="message-content">
-                <div class="message-bubble">${conversation.lastMessage}</div>
-                <div class="message-time">10:30</div>
-            </div>
-        </div>
-        <div class="message own">
-            <div class="message-content">
-                <div class="message-bubble">Chào bạn! Mình khỏe, cảm ơn bạn!</div>
-                <div class="message-time">10:31</div>
-            </div>
-        </div>
-    `;
+    // Chat history will be loaded by setActiveConversation via websocket.js
 }
 
 // Global functions for button handlers
