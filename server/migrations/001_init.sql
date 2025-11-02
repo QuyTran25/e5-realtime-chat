@@ -367,3 +367,38 @@ JOIN users u2 ON f.friend_id = u2.id
 WHERE u1.username IN ('nguyenvana', 'tranthib') 
    OR u2.username IN ('nguyenvana', 'tranthib')
 ORDER BY f.created_at;
+
+-- ============================================
+-- Thêm 25 tài khoản test với mật khẩu: 0123456789
+-- Password hash: $2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK
+-- ============================================
+INSERT INTO users (username, email, password_hash, avatar_url, is_online, created_at, updated_at) VALUES
+('phamvanc', 'phamvanc@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=10', false, NOW(), NOW()),
+('lethid', 'lethid@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=11', false, NOW(), NOW()),
+('hoangvane', 'hoangvane@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=12', false, NOW(), NOW()),
+('dangthif', 'dangthif@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=13', false, NOW(), NOW()),
+('dovang', 'dovang@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=14', false, NOW(), NOW()),
+('ngothih', 'ngothih@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=15', false, NOW(), NOW()),
+('buivani', 'buivani@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=16', false, NOW(), NOW()),
+('vuvanm', 'vuvanm@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=17', false, NOW(), NOW()),
+('dinhthin', 'dinhthin@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=18', false, NOW(), NOW()),
+('lyvanp', 'lyvanp@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=19', false, NOW(), NOW()),
+('tranvanq', 'tranvanq@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=20', false, NOW(), NOW()),
+('nguyenthir', 'nguyenthir@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=21', false, NOW(), NOW()),
+('phamvans', 'phamvans@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=22', false, NOW(), NOW()),
+('levant', 'levant@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=23', false, NOW(), NOW()),
+('hoangthiu', 'hoangthiu@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=24', false, NOW(), NOW()),
+('dangvanv', 'dangvanv@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=25', false, NOW(), NOW()),
+('dovantw', 'dovantw@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=26', false, NOW(), NOW()),
+('ngovanx', 'ngovanx@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=27', false, NOW(), NOW()),
+('buithiy', 'buithiy@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=28', false, NOW(), NOW()),
+('vuthiz', 'vuthiz@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=29', false, NOW(), NOW()),
+('dinhvana', 'dinhvana@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=30', false, NOW(), NOW()),
+('lythib', 'lythib@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=31', false, NOW(), NOW()),
+('tranvanc', 'tranvanc@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=32', false, NOW(), NOW()),
+('nguyenvand', 'nguyenvand@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=33', false, NOW(), NOW()),
+('phamthie', 'phamthie@email.com', '$2a$10$N9qo8uLOickgx2ZMRZoMye7FRNv6OeYCAzNM1w4m2.4hFZ7dYLhKK', 'https://i.pravatar.cc/150?img=34', false, NOW(), NOW())
+ON CONFLICT (username) DO NOTHING;
+
+-- Hiển thị tổng số users sau khi thêm
+SELECT COUNT(*) as total_users FROM users;
