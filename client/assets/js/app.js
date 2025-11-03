@@ -103,51 +103,20 @@ function initializeDemoData() {
     // Load conversations from API instead of demo data
     loadConversationsFromAPI();
     
-    // Demo friend requests
-    const demoFriendRequests = [
-        {
-            id: 1,
-            name: 'Phạm Văn D',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0Y1OUUwQiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            mutualFriends: 5
-        },
-        {
-            id: 2,
-            name: 'Hoàng Thị E',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzgzMzNGRiIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            mutualFriends: 12
-        }
-    ];
+    // Load friend requests from API
+    loadFriendRequestsFromAPI();
     
-    // Demo friends list
-    const demoFriends = [
-        {
-            id: 1,
-            name: 'Nguyễn Văn A',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM0QThGNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            status: 'Đang hoạt động',
-            online: true
-        },
-        {
-            id: 2,
-            name: 'Trần Thị B',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0VGNDQ0NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            status: 'Offline 2 giờ trước',
-            online: false
-        }
-    ];
-    
-    // Render conversations - will be loaded from API
-    // renderConversations(demoConversations);
-    
-    // Render friend requests
-    renderFriendRequests(demoFriendRequests);
-    
-    // Render friends list
-    renderFriends(demoFriends);
+    // Load friends list from API
+    loadFriendsFromAPI();
     
     // Setup search functionality
     setupSearch();
+    
+    // Auto-refresh friend requests every 30 seconds
+    setInterval(loadFriendRequestsFromAPI, 30000);
+    
+    // Auto-refresh friends list every 60 seconds
+    setInterval(loadFriendsFromAPI, 60000);
 }
 
 // Load conversations from API
@@ -189,6 +158,63 @@ async function loadConversationsFromAPI() {
     }
 }
 
+// Load friend requests from API
+async function loadFriendRequestsFromAPI() {
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!userData) return;
+
+    try {
+        const user = JSON.parse(userData);
+        const response = await fetch('http://localhost:8080/api/friends/requests', {
+            headers: {
+                'Authorization': `Bearer ${user.token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load friend requests');
+        }
+
+        const requests = await response.json();
+        console.log('✅ Loaded friend requests:', requests);
+        
+        // Update badge
+        updateFriendRequestBadge(requests.length);
+        
+        // Render friend requests
+        renderFriendRequests(requests || []);
+    } catch (error) {
+        console.error('❌ Error loading friend requests:', error);
+    }
+}
+
+// Load friends list from API
+async function loadFriendsFromAPI() {
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!userData) return;
+
+    try {
+        const user = JSON.parse(userData);
+        const response = await fetch('http://localhost:8080/api/friends', {
+            headers: {
+                'Authorization': `Bearer ${user.token}`
+            }
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to load friends');
+        }
+
+        const friends = await response.json();
+        console.log('✅ Loaded friends:', friends);
+        
+        // Render friends list
+        renderFriends(friends || []);
+    } catch (error) {
+        console.error('❌ Error loading friends:', error);
+    }
+}
+
 // Format time for display
 function formatTime(dateString) {
     const date = new Date(dateString);
@@ -224,6 +250,10 @@ function formatTime(dateString) {
 // Update conversation list (called after sending/receiving message)
 window.updateConversationList = loadConversationsFromAPI;
 
+// Expose friend request functions globally
+window.loadFriendRequestsFromAPI = loadFriendRequestsFromAPI;
+window.loadFriendsFromAPI = loadFriendsFromAPI;
+
 function renderConversations(conversations) {
     const conversationsList = document.getElementById('conversationsList');
     
@@ -258,12 +288,24 @@ function renderConversations(conversations) {
 function renderFriendRequests(requests) {
     const friendRequestsList = document.getElementById('friendRequestsList');
     
+    if (!requests || requests.length === 0) {
+        friendRequestsList.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #9CA3AF;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" style="margin-bottom: 16px;">
+                    <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+                </svg>
+                <p>Chưa có lời mời kết bạn nào</p>
+            </div>
+        `;
+        return;
+    }
+    
     friendRequestsList.innerHTML = requests.map(req => `
         <div class="friend-request-item" data-id="${req.id}">
-            <img src="${req.avatar}" alt="${req.name}" class="friend-avatar">
+            <img src="${req.avatar || req.avatar_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzZCNzI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K'}" alt="${req.name || req.username}" class="friend-avatar">
             <div class="friend-info">
-                <div class="friend-name">${req.name}</div>
-                <div class="friend-status">${req.mutualFriends} bạn chung</div>
+                <div class="friend-name">${req.name || req.username}</div>
+                <div class="friend-status">Muốn kết bạn với bạn</div>
             </div>
             <div class="friend-actions">
                 <button class="btn-accept" onclick="acceptFriendRequest(${req.id})">Chấp nhận</button>
@@ -276,18 +318,38 @@ function renderFriendRequests(requests) {
 function renderFriends(friends) {
     const friendsList = document.getElementById('friendsList');
     
-    friendsList.innerHTML = friends.map(friend => `
-        <div class="friend-item" data-id="${friend.id}">
-            <img src="${friend.avatar}" alt="${friend.name}" class="friend-avatar">
-            <div class="friend-info">
-                <div class="friend-name">${friend.name}</div>
-                <div class="friend-status">${friend.status}</div>
+    if (!friends || friends.length === 0) {
+        friendsList.innerHTML = `
+            <div style="padding: 40px; text-align: center; color: #9CA3AF;">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" style="margin-bottom: 16px;">
+                    <path d="M16,4C18.21,4 20,5.79 20,8C20,10.21 18.21,12 16,12C13.79,12 12,10.21 12,8C12,5.79 13.79,4 16,4M16,13C18.67,13 22,14.33 22,17V20H10V17C10,14.33 13.33,13 16,13M8,4C10.21,4 12,5.79 12,8C12,10.21 10.21,12 8,12C5.79,12 4,10.21 4,8C4,5.79 5.79,4 8,4M8,13C10.67,13 14,14.33 14,17V20H2V17C2,14.33 5.33,13 8,13Z"/>
+                </svg>
+                <p>Chưa có bạn bè</p>
             </div>
-            <div class="friend-actions">
-                <button class="btn-message" onclick="startChat(${friend.id})">Nhắn tin</button>
+        `;
+        return;
+    }
+    
+    friendsList.innerHTML = friends.map(friend => {
+        const isOnline = friend.online || friend.is_online;
+        const statusText = isOnline ? 'Đang hoạt động' : 'Offline';
+        
+        return `
+            <div class="friend-item" data-id="${friend.id}">
+                <div style="position: relative;">
+                    <img src="${friend.avatar || friend.avatar_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzZCNzI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K'}" alt="${friend.name || friend.username}" class="friend-avatar">
+                    ${isOnline ? '<span class="online-indicator" style="position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; background: #10B981; border: 2px solid white; border-radius: 50%;"></span>' : ''}
+                </div>
+                <div class="friend-info">
+                    <div class="friend-name">${friend.name || friend.username}</div>
+                    <div class="friend-status">${statusText}</div>
+                </div>
+                <div class="friend-actions">
+                    <button class="btn-message" onclick="startChat(${friend.id}, '${friend.name || friend.username}', '${friend.avatar || friend.avatar_url}', ${isOnline})">Nhắn tin</button>
+                </div>
             </div>
-        </div>
-    `).join('');
+        `;
+    }).join('');
 }
 
 function setupSearch() {
@@ -343,70 +405,106 @@ function openChat(conversation) {
 }
 
 // Global functions for button handlers
-function acceptFriendRequest(id) {
-    if (confirm('Chấp nhận lời mời kết bạn?')) {
-        document.querySelector(`[data-id="${id}"]`).remove();
-        updateFriendRequestBadge();
-        showNotification('Đã chấp nhận lời mời kết bạn!');
-    }
-}
+async function acceptFriendRequest(id) {
+    if (!confirm('Chấp nhận lời mời kết bạn?')) return;
+    
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!userData) return;
 
-function declineFriendRequest(id) {
-    if (confirm('Từ chối lời mời kết bạn?')) {
-        document.querySelector(`[data-id="${id}"]`).remove();
-        updateFriendRequestBadge();
-        showNotification('Đã từ chối lời mời kết bạn!');
-    }
-}
+    try {
+        const user = JSON.parse(userData);
+        const response = await fetch('http://localhost:8080/api/friends/accept', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ friend_id: id })
+        });
 
-function startChat(friendId) {
-    // Tìm bạn trong danh sách friends demo
-    const allFriends = [
-        {
-            id: 1,
-            name: 'Nguyễn Văn A',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzM0QThGNCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            status: 'Đang hoạt động',
-            online: true
-        },
-        {
-            id: 2,
-            name: 'Trần Thị B',
-            avatar: 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iI0VGNDQ0NCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
-            status: 'Offline 2 giờ trước',
-            online: false
+        if (!response.ok) {
+            throw new Error('Failed to accept friend request');
         }
-    ];
 
-    const friend = allFriends.find(f => f.id === friendId);
-    if (!friend) return;
+        const result = await response.json();
+        console.log('✅ Friend request accepted:', result);
+        
+        showNotification('✅ Đã chấp nhận lời mời kết bạn!');
+        
+        // Reload friend requests and friends list
+        await loadFriendRequestsFromAPI();
+        await loadFriendsFromAPI();
+        
+    } catch (error) {
+        console.error('❌ Error accepting friend request:', error);
+        showNotification('❌ Không thể chấp nhận lời mời kết bạn');
+    }
+}
 
+async function declineFriendRequest(id) {
+    if (!confirm('Từ chối lời mời kết bạn?')) return;
+    
+    const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
+    if (!userData) return;
+
+    try {
+        const user = JSON.parse(userData);
+        const response = await fetch('http://localhost:8080/api/friends/reject', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${user.token}`
+            },
+            body: JSON.stringify({ friend_id: id })
+        });
+
+        if (!response.ok) {
+            throw new Error('Failed to reject friend request');
+        }
+
+        const result = await response.json();
+        console.log('✅ Friend request rejected:', result);
+        
+        showNotification('Đã từ chối lời mời kết bạn');
+        
+        // Reload friend requests
+        await loadFriendRequestsFromAPI();
+        
+    } catch (error) {
+        console.error('❌ Error rejecting friend request:', error);
+        showNotification('❌ Không thể từ chối lời mời kết bạn');
+    }
+}
+
+function startChat(friendId, friendName, friendAvatar, isOnline) {
     // Chuyển sang tab "Messages"
     document.querySelector('[data-section="messages"]').click();
 
-    // Giả lập mở đoạn chat
+    // Mở đoạn chat
     openChat({
-        id: friend.id,
-        name: friend.name,
-        avatar: friend.avatar,
-        lastMessage: 'Bắt đầu cuộc trò chuyện mới với ' + friend.name,
-        online: friend.online
+        id: friendId,
+        name: friendName,
+        avatar: friendAvatar || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzZCNzI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K',
+        lastMessage: 'Bắt đầu cuộc trò chuyện',
+        online: isOnline
     });
 
     // Hiển thị thông báo nhỏ
-    showNotification(`Đang trò chuyện với ${friend.name}`);
+    showNotification(`💬 Đang trò chuyện với ${friendName}`);
 }
 
 function viewProfile(userId) {
     showNotification('Xem thông tin người dùng (chức năng đang phát triển)');
 }
 
-function updateFriendRequestBadge() {
+function updateFriendRequestBadge(count) {
     const badge = document.getElementById('friendRequestBadge');
-    const remainingRequests = document.querySelectorAll('.friend-request-item').length;
     
-    if (remainingRequests > 0) {
-        badge.textContent = remainingRequests;
+    if (!badge) return;
+    
+    if (count && count > 0) {
+        badge.textContent = count;
+        badge.style.display = 'inline-block';
     } else {
         badge.style.display = 'none';
     }
