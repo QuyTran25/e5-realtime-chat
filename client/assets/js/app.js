@@ -606,20 +606,31 @@ function performLogout() {
     confirmBtn.disabled = true;
     
     // Simulate logout process
+    try {
+        if (typeof logout === 'function') {
+            // Call the logout function implemented in websocket.js
+            logout();
+            return;
+        }
+    } catch (e) {
+        console.warn('logout() function not available, falling back to local clear');
+    }
+
+    // Fallback behaviour (best-effort): clear local session and redirect
     setTimeout(() => {
         // Clear user data
         localStorage.removeItem('user');
         sessionStorage.removeItem('user');
         localStorage.removeItem('authToken');
         localStorage.removeItem('refreshToken');
-        
+
         // Show success message briefly
         showNotification('Đã đăng xuất thành công!');
-        
+
         // Redirect to login
         setTimeout(() => {
             window.location.href = 'login.html';
         }, 1000);
-        
-    }, 1500); // Simulate API call delay
+
+    }, 1500);
 }
