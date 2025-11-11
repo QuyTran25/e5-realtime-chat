@@ -67,12 +67,25 @@ func NewDB(host, port, user, password, dbname string) (*DB, error) {
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	// Set connection pool settings
-	conn.SetMaxOpenConns(25)
-	conn.SetMaxIdleConns(5)
-	conn.SetConnMaxLifetime(5 * time.Minute)
+	// Set connection pool settings for high load
+	// MaxOpenConns: Maximum number of open connections to the database
+	// Set to 100 to handle high concurrent requests (3 server instances * ~33 conns each)
+	conn.SetMaxOpenConns(100)
+
+	// MaxIdleConns: Maximum number of idle connections in the pool
+	// Set to 10 to keep connections warm and reduce connection overhead
+	conn.SetMaxIdleConns(10)
+
+	// ConnMaxLifetime: Maximum amount of time a connection may be reused
+	// Set to 1 hour to prevent long-lived connections from becoming stale
+	conn.SetConnMaxLifetime(1 * time.Hour)
+
+	// ConnMaxIdleTime: Maximum amount of time a connection may be idle
+	// Set to 10 minutes to close idle connections that are not being used
+	conn.SetConnMaxIdleTime(10 * time.Minute)
 
 	log.Printf("✅ Database connected successfully: %s:%s/%s", host, port, dbname)
+	log.Printf("📊 Connection pool: MaxOpen=100, MaxIdle=10, MaxLifetime=1h, MaxIdleTime=10m")
 
 	return &DB{conn: conn}, nil
 }

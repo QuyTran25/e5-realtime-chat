@@ -12,6 +12,7 @@ import (
 	"e5realtimechat/internal/cache"
 	"e5realtimechat/internal/database"
 	"e5realtimechat/internal/handlers"
+	"e5realtimechat/internal/middleware"
 	"e5realtimechat/internal/queue"
 	"e5realtimechat/internal/websocket"
 
@@ -204,6 +205,13 @@ func main() {
 	// Set save message function for websocket
 	websocket.SetSaveMessageFunc(handlers.SaveMessageToDB)
 
+	// Initialize rate limiter
+	var rateLimiter *middleware.RateLimiter
+	if redisClient != nil {
+		rateLimiter = middleware.NewRateLimiter(redisClient.GetClient())
+		log.Println("✅ Rate limiter initialized with Redis backend")
+	}
+
 	// Create hub
 	hub := websocket.NewHub()
 
@@ -212,20 +220,36 @@ func main() {
 		hub.SetCacheService(cacheService)
 	}
 
+	// Set rate limiter for WebSocket message throttling
+	if rateLimiter != nil {
+		hub.SetRateLimiter(rateLimiter)
+	}
+
+	// Set Redis client for Pub/Sub cross-instance messaging
+	if redisClient != nil {
+		hub.SetRedisClient(redisClient)
+	}
+
 	go hub.Run()
 
 	// Setup routes
 	mux := http.NewServeMux()
 
-	// Auth routes (no auth required)
-	authHandler.RegisterRoutes(mux)
+	// Auth routes with strict rate limiting
+	if rateLimiter != nil {
+		strictLimit := rateLimiter.RateLimitMiddleware(middleware.StrictLimit)
+		authHandler.RegisterRoutesWithRateLimiter(mux, strictLimit)
+	} else {
+		// Fallback without rate limiting
+		authHandler.RegisterRoutes(mux)
+	}
 
 	// WebSocket route (requires auth)
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		serveWs(hub, authService, w, r)
 	})
 
-	// Health check with instance info
+	// Health check with instance info (no rate limit)
 	instanceID := getEnv("HOSTNAME", "unknown")
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
@@ -234,17 +258,37 @@ func main() {
 		_, _ = w.Write([]byte(response))
 	})
 
-	// Friends API (protected)
-	mux.HandleFunc("/api/friends", auth.AuthMiddleware(handlers.FriendsHandler(friendsService)))
-	mux.HandleFunc("/api/friends/search", auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService)))
-	mux.HandleFunc("/api/friends/request", auth.AuthMiddleware(handlers.SendFriendRequestHandler(friendsService)))
-	mux.HandleFunc("/api/friends/requests", auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService)))
-	mux.HandleFunc("/api/friends/accept", auth.AuthMiddleware(handlers.AcceptFriendRequestHandler(friendsService)))
-	mux.HandleFunc("/api/friends/reject", auth.AuthMiddleware(handlers.RejectFriendRequestHandler(friendsService)))
+	// Friends API with normal rate limiting (protected)
+	if rateLimiter != nil {
+		normalLimit := rateLimiter.RateLimitMiddleware(middleware.NormalLimit)
 
-	// Messages API (protected)
-	mux.HandleFunc("/api/messages/history", auth.AuthMiddleware(handlers.GetMessageHistoryHandler(db)))
-	mux.HandleFunc("/api/conversations", auth.AuthMiddleware(handlers.GetConversationsHandler(db)))
+		mux.Handle("/api/friends", normalLimit(auth.AuthMiddleware(handlers.FriendsHandler(friendsService))))
+		mux.Handle("/api/friends/search", normalLimit(auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService))))
+		mux.Handle("/api/friends/request", normalLimit(auth.AuthMiddleware(handlers.SendFriendRequestHandler(friendsService))))
+		mux.Handle("/api/friends/requests", normalLimit(auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService))))
+		mux.Handle("/api/friends/accept", normalLimit(auth.AuthMiddleware(handlers.AcceptFriendRequestHandler(friendsService))))
+		mux.Handle("/api/friends/reject", normalLimit(auth.AuthMiddleware(handlers.RejectFriendRequestHandler(friendsService))))
+	} else {
+		// Fallback without rate limiting
+		mux.HandleFunc("/api/friends", auth.AuthMiddleware(handlers.FriendsHandler(friendsService)))
+		mux.HandleFunc("/api/friends/search", auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService)))
+		mux.HandleFunc("/api/friends/request", auth.AuthMiddleware(handlers.SendFriendRequestHandler(friendsService)))
+		mux.HandleFunc("/api/friends/requests", auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService)))
+		mux.HandleFunc("/api/friends/accept", auth.AuthMiddleware(handlers.AcceptFriendRequestHandler(friendsService)))
+		mux.HandleFunc("/api/friends/reject", auth.AuthMiddleware(handlers.RejectFriendRequestHandler(friendsService)))
+	}
+
+	// Messages API with relaxed rate limiting (read-heavy, protected)
+	if rateLimiter != nil {
+		relaxedLimit := rateLimiter.RateLimitMiddleware(middleware.RelaxedLimit)
+
+		mux.Handle("/api/messages/history", relaxedLimit(auth.AuthMiddleware(handlers.GetMessageHistoryHandler(db))))
+		mux.Handle("/api/conversations", relaxedLimit(auth.AuthMiddleware(handlers.GetConversationsHandler(db))))
+	} else {
+		// Fallback without rate limiting
+		mux.HandleFunc("/api/messages/history", auth.AuthMiddleware(handlers.GetMessageHistoryHandler(db)))
+		mux.HandleFunc("/api/conversations", auth.AuthMiddleware(handlers.GetConversationsHandler(db)))
+	}
 
 	addr := ":8080"
 	if p := os.Getenv("PORT"); p != "" {

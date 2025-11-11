@@ -25,6 +25,10 @@ type Hub struct {
 	register     chan *Client
 	unregister   chan *Client
 	cacheService *cache.CacheService // Redis cache for online status
+	rateLimiter  interface {         // Rate limiter for message throttling
+		CheckUserMessageRate(userID int) (bool, error)
+	}
+	redisClient *cache.RedisClient // Redis client for Pub/Sub cross-instance messaging
 }
 
 // DirectMessage contains message and target user ID
@@ -42,12 +46,31 @@ func NewHub() *Hub {
 		register:     make(chan *Client),
 		unregister:   make(chan *Client),
 		cacheService: nil,
+		rateLimiter:  nil,
+		redisClient:  nil,
 	}
 }
 
 // SetCacheService sets the cache service for the hub
 func (h *Hub) SetCacheService(cacheService *cache.CacheService) {
 	h.cacheService = cacheService
+}
+
+// SetRateLimiter sets the rate limiter for the hub
+func (h *Hub) SetRateLimiter(rateLimiter interface {
+	CheckUserMessageRate(userID int) (bool, error)
+}) {
+	h.rateLimiter = rateLimiter
+}
+
+// SetRedisClient sets the Redis client for Pub/Sub messaging
+func (h *Hub) SetRedisClient(redisClient *cache.RedisClient) {
+	h.redisClient = redisClient
+	// Start Redis subscriber in background if Redis is available
+	if h.redisClient != nil {
+		go h.subscribeToRedis()
+		log.Println("✅ Redis Pub/Sub enabled for cross-instance messaging")
+	}
 }
 
 // // Run chạy liên tục, xử lý các sự kiện từ các channel
@@ -141,4 +164,56 @@ func (h *Hub) Register(conn interface{}, userID int, username string) *Client {
 func (c *Client) StartClient() {
 	go c.writePump()
 	c.readPump()
+}
+
+// ==================== REDIS PUB/SUB FOR HORIZONTAL SCALING ====================
+
+const redisBroadcastChannel = "chat:broadcast"
+const redisDirectMsgChannel = "chat:direct"
+
+// BroadcastViaRedis publishes a broadcast message to Redis
+// This allows messages to be received by clients connected to other server instances
+func (h *Hub) BroadcastViaRedis(message []byte) error {
+	if h.redisClient == nil {
+		// Fallback to local broadcast only
+		h.broadcast <- message
+		return nil
+	}
+
+	// Publish to Redis for cross-instance delivery
+	if err := h.redisClient.Publish(redisBroadcastChannel, string(message)); err != nil {
+		log.Printf("⚠️ Failed to publish message to Redis: %v", err)
+		// Fallback to local broadcast
+		h.broadcast <- message
+		return err
+	}
+
+	// Also send to local clients immediately (don't wait for Redis echo)
+	h.broadcast <- message
+	return nil
+}
+
+// subscribeToRedis listens for messages published by other server instances
+func (h *Hub) subscribeToRedis() {
+	pubsub := h.redisClient.Subscribe(redisBroadcastChannel)
+	defer pubsub.Close()
+
+	ch := pubsub.Channel()
+
+	log.Printf("📡 Listening on Redis channel: %s", redisBroadcastChannel)
+
+	for msg := range ch {
+		// Received message from another instance, broadcast to local clients
+		message := []byte(msg.Payload)
+
+		// Send to local clients only (don't re-publish to avoid loops)
+		for client := range h.clients {
+			select {
+			case client.send <- message:
+			default:
+				// Client channel full, skip this message for this client
+				log.Printf("⚠️ Client %d channel full, skipping message", client.userID)
+			}
+		}
+	}
 }

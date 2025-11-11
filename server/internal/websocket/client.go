@@ -88,6 +88,27 @@ func (c *Client) readPump() {
 		// Parse message to check if it's a direct message
 		var wsMsg WSMessage
 		if err := json.Unmarshal(message, &wsMsg); err == nil {
+			// Check rate limit for this user
+			if c.hub.rateLimiter != nil && c.userID > 0 {
+				allowed, err := c.hub.rateLimiter.CheckUserMessageRate(c.userID)
+				if err != nil {
+					log.Printf("⚠️ Rate limit check error for user %d: %v", c.userID, err)
+				} else if !allowed {
+					log.Printf("🚫 Rate limit exceeded for user %d (%s)", c.userID, c.username)
+					// Send rate limit error back to client
+					errorMsg := WSMessage{
+						Type:       "error",
+						Text:       "Rate limit exceeded. Please slow down.",
+						FromUserID: 0,
+						From:       "System",
+					}
+					if errBytes, err := json.Marshal(errorMsg); err == nil {
+						c.send <- errBytes
+					}
+					continue // Skip this message
+				}
+			}
+
 			// Add sender info
 			wsMsg.FromUserID = c.userID
 			wsMsg.From = c.username
@@ -117,12 +138,16 @@ func (c *Client) readPump() {
 				// Also send back to sender for confirmation
 				c.send <- message
 			} else {
-				// Broadcast to all
-				c.hub.SendBroadcast(message)
+				// Broadcast to all instances via Redis Pub/Sub
+				if err := c.hub.BroadcastViaRedis(message); err != nil {
+					log.Printf("⚠️ Failed to broadcast via Redis: %v", err)
+				}
 			}
 		} else {
-			// If parse fails, broadcast as before
-			c.hub.broadcast <- message
+			// If parse fails, broadcast via Redis
+			if err := c.hub.BroadcastViaRedis(message); err != nil {
+				log.Printf("⚠️ Failed to broadcast via Redis: %v", err)
+			}
 		}
 	}
 }

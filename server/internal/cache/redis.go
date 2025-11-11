@@ -184,3 +184,31 @@ func (r *RedisClient) FlushDB() error {
 func (r *RedisClient) Keys(pattern string) ([]string, error) {
 	return r.client.Keys(r.ctx, pattern).Result()
 }
+
+// GetClient returns the underlying redis.Client for advanced operations
+func (r *RedisClient) GetClient() *redis.Client {
+	return r.client
+}
+
+// GetContext returns the context used by this client
+func (r *RedisClient) GetContext() context.Context {
+	return r.ctx
+}
+
+// ==================== PUB/SUB OPERATIONS ====================
+
+// Publish publishes a message to a Redis channel
+func (r *RedisClient) Publish(channel string, message interface{}) error {
+	return r.client.Publish(r.ctx, channel, message).Err()
+}
+
+// Subscribe subscribes to one or more Redis channels
+// Returns a PubSub object that can be used to receive messages
+func (r *RedisClient) Subscribe(channels ...string) *redis.PubSub {
+	return r.client.Subscribe(r.ctx, channels...)
+}
+
+// PSubscribe subscribes to channels matching a pattern
+func (r *RedisClient) PSubscribe(patterns ...string) *redis.PubSub {
+	return r.client.PSubscribe(r.ctx, patterns...)
+}

@@ -28,6 +28,14 @@ func (h *Handler) RegisterRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/auth/me", h.handleMe)
 }
 
+// RegisterRoutesWithRateLimiter registers auth routes with rate limiting middleware
+func (h *Handler) RegisterRoutesWithRateLimiter(mux *http.ServeMux, rateLimitMiddleware func(http.Handler) http.Handler) {
+	mux.Handle("/api/auth/register", rateLimitMiddleware(http.HandlerFunc(h.handleRegister)))
+	mux.Handle("/api/auth/login", rateLimitMiddleware(http.HandlerFunc(h.handleLogin)))
+	mux.Handle("/api/auth/logout", rateLimitMiddleware(http.HandlerFunc(h.handleLogout)))
+	mux.Handle("/api/auth/me", rateLimitMiddleware(http.HandlerFunc(h.handleMe)))
+}
+
 func writeJSON(w http.ResponseWriter, status int, data interface{}) {
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
