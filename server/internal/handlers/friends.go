@@ -1,4 +1,4 @@
-package main
+package handlers
 
 import (
 	"database/sql"
@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"e5realtimechat/Auth"
+	"e5realtimechat/internal/auth"
 )
 
 // Cấu trúc dữ liệu bạn bè
@@ -127,7 +127,7 @@ func (s *FriendsService) SendFriendRequest(fromUserID, toUserID int) error {
 		return err
 	}
 	if exists {
-		return Auth.ErrUserExists // Reuse error, or create new one
+		return auth.ErrUserExists // Reuse error, or create new one
 	}
 
 	// Insert friend request
@@ -151,7 +151,7 @@ func (s *FriendsService) AcceptFriendRequest(userID, friendID int) error {
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return Auth.ErrUserNotFound // No pending request found
+		return auth.ErrUserNotFound // No pending request found
 	}
 	return nil
 }
@@ -168,7 +168,7 @@ func (s *FriendsService) RejectFriendRequest(userID, friendID int) error {
 
 	rows, _ := result.RowsAffected()
 	if rows == 0 {
-		return Auth.ErrUserNotFound
+		return auth.ErrUserNotFound
 	}
 	return nil
 }
@@ -220,7 +220,7 @@ func friendsHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Get user from context
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -248,7 +248,7 @@ func searchUsersHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -289,7 +289,7 @@ func sendFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -333,7 +333,7 @@ func getFriendRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -366,7 +366,7 @@ func acceptFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return
@@ -410,7 +410,7 @@ func rejectFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	claims, ok := Auth.GetUserFromContext(r.Context())
+	claims, ok := auth.GetUserFromContext(r.Context())
 	if !ok {
 		http.Error(w, "Unauthorized", http.StatusUnauthorized)
 		return

@@ -1,6 +1,6 @@
 // Định nghĩa struct Client
 // TEMPORARY STUB - Will be properly implemented by Người 1 + 2
-package main
+package websocket
 
 import (
 	"bytes"
@@ -8,7 +8,7 @@ import (
 	"log"
 	"time"
 
-	"github.com/gorilla/websocket"
+	ws "github.com/gorilla/websocket"
 )
 
 // các hằng số cấu hình cho việc đọc/ghi message
@@ -29,11 +29,21 @@ var (
 // Một Client đại diện cho một kết nối websocket tới một user cụ thể
 // Nó sẽ đọc tin nhắn từ kết nối và gửi tin nhắn từ Hub xuống kết nối
 type Client struct {
-	hub      *Hub            // tham chiếu tới Hub (quản lý chung)
-	conn     *websocket.Conn // kết nối websocket thật sự
-	send     chan []byte     // kênh để nhận tin nhắn từ Hub và gửi xuống client
-	userID   int             // ID của user đang kết nối
-	username string          // Tên của user đang kết nối
+	hub      *Hub        // tham chiếu tới Hub (quản lý chung)
+	conn     *ws.Conn    // kết nối websocket thật sự
+	send     chan []byte // kênh để nhận tin nhắn từ Hub và gửi xuống client
+	userID   int         // ID của user đang kết nối
+	username string      // Tên của user đang kết nối
+}
+
+// SaveMessageFunc is a function type for saving messages to database
+type SaveMessageFunc func(fromUserID, toUserID int, messageText string) error
+
+var saveMessageToDB SaveMessageFunc
+
+// SetSaveMessageFunc sets the function for saving messages
+func SetSaveMessageFunc(fn SaveMessageFunc) {
+	saveMessageToDB = fn
 }
 
 // Hàm readPump() – Đọc tin nhắn từ Client
@@ -57,7 +67,7 @@ func (c *Client) readPump() {
 	for {
 		_, message, err := c.conn.ReadMessage()
 		if err != nil {
-			if websocket.IsUnexpectedCloseError(err, websocket.CloseGoingAway, websocket.CloseAbnormalClosure) {
+			if ws.IsUnexpectedCloseError(err, ws.CloseGoingAway, ws.CloseAbnormalClosure) {
 				log.Printf("❌ lỗi đọc message: %v", err)
 			}
 			break
@@ -83,8 +93,10 @@ func (c *Client) readPump() {
 			if wsMsg.Type == "message" && wsMsg.Text != "" {
 				if wsMsg.ToUserID > 0 {
 					// Private message - save to database
-					if err := SaveMessageToDB(c.userID, wsMsg.ToUserID, wsMsg.Text); err != nil {
-						log.Printf("❌ Error saving message to DB: %v", err)
+					if saveMessageToDB != nil {
+						if err := saveMessageToDB(c.userID, wsMsg.ToUserID, wsMsg.Text); err != nil {
+							log.Printf("❌ Error saving message to DB: %v", err)
+						}
 					}
 				}
 			}
@@ -124,11 +136,11 @@ func (c *Client) writePump() {
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				// channel bị đóng => đóng kết nối
-				c.conn.WriteMessage(websocket.CloseMessage, []byte{})
+				c.conn.WriteMessage(ws.CloseMessage, []byte{})
 				return
 			}
 
-			w, err := c.conn.NextWriter(websocket.TextMessage)
+			w, err := c.conn.NextWriter(ws.TextMessage)
 			if err != nil {
 				return
 			}
@@ -148,7 +160,7 @@ func (c *Client) writePump() {
 		case <-ticker.C:
 			// Gửi ping để giữ kết nối
 			c.conn.SetWriteDeadline(time.Now().Add(writeWait))
-			if err := c.conn.WriteMessage(websocket.PingMessage, nil); err != nil {
+			if err := c.conn.WriteMessage(ws.PingMessage, nil); err != nil {
 				return
 			}
 		}

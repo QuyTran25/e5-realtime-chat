@@ -1,4 +1,8 @@
-package main
+package websocket
+
+import (
+	ws "github.com/gorilla/websocket"
+)
 
 // Message structure for routing
 type WSMessage struct {
@@ -25,7 +29,7 @@ type DirectMessage struct {
 	toUserID int
 }
 
-//Newhub khởi tạo 1 hub mới
+//NewHub khởi tạo 1 hub mới
 func NewHub() *Hub {
 	return &Hub{
 		clients:    make(map[*Client]bool),
@@ -36,8 +40,8 @@ func NewHub() *Hub {
 	}
 }
 
-//// run() chạy liên tục, xử lý các sự kiện từ các channel
-func (h *Hub) run() {
+//// Run chạy liên tục, xử lý các sự kiện từ các channel
+func (h *Hub) Run() {
 	for {
 		select {
 		case client := <-h.register:
@@ -90,4 +94,23 @@ func (h *Hub) SendDirectMessage(message []byte, toUserID int) {
 // SendBroadcast sends a message to all connected clients
 func (h *Hub) SendBroadcast(message []byte) {
 	h.broadcast <- message
+}
+
+// Register registers a new client
+func (h *Hub) Register(conn interface{}, userID int, username string) *Client {
+	client := &Client{
+		hub:      h,
+		conn:     conn.(*ws.Conn),
+		send:     make(chan []byte, 256),
+		userID:   userID,
+		username: username,
+	}
+	h.register <- client
+	return client
+}
+
+// StartClient starts the read and write pumps for a client
+func (c *Client) StartClient() {
+	go c.writePump()
+	c.readPump()
 }

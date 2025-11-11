@@ -174,7 +174,7 @@ docker exec -i e5-postgres psql -U chatuser chatdb < backup.sql
 ## Connect từ Go Code
 
 ```go
-import "e5realtimechat/database"
+import "e5realtimechat/internal/database"
 
 db, err := database.NewDB(
     "localhost", // host

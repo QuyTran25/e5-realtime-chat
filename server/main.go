@@ -8,8 +8,10 @@ import (
 	"os"
 	"strings"
 
-	"e5realtimechat/Auth"
-	"e5realtimechat/database"
+	"e5realtimechat/internal/auth"
+	"e5realtimechat/internal/database"
+	"e5realtimechat/internal/handlers"
+	"e5realtimechat/internal/websocket"
 
 	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
@@ -41,7 +43,7 @@ var upgrader = websocket.Upgrader{
 }
 
 // serveWs handles WebSocket requests from the peer (with authentication).
-func serveWs(hub *Hub, authService *Auth.AuthService, w http.ResponseWriter, r *http.Request) {
+func serveWs(hub *websocket.Hub, authService *auth.AuthService, w http.ResponseWriter, r *http.Request) {
 	// Validate token from query parameter or header
 	token := r.URL.Query().Get("token")
 	if token == "" {
@@ -62,13 +64,13 @@ func serveWs(hub *Hub, authService *Auth.AuthService, w http.ResponseWriter, r *
 	}
 
 	// Validate token
-	if Auth.IsTokenBlacklisted(token) {
+	if auth.IsTokenBlacklisted(token) {
 		http.Error(w, "Unauthorized: token revoked", http.StatusUnauthorized)
 		log.Println("❌ WebSocket connection rejected: token revoked")
 		return
 	}
 
-	claims, err := Auth.ValidateToken(token)
+	claims, err := auth.ValidateToken(token)
 	if err != nil {
 		http.Error(w, "Unauthorized: invalid token", http.StatusUnauthorized)
 		log.Printf("❌ WebSocket connection rejected: invalid token - %v", err)
@@ -93,19 +95,11 @@ func serveWs(hub *Hub, authService *Auth.AuthService, w http.ResponseWriter, r *
 	log.Printf("✅ WebSocket connected: userID=%d, username=%s", user.ID, user.Username)
 
 	// Create client with user info
-	client := &Client{
-		hub:      hub,
-		conn:     conn,
-		send:     make(chan []byte, 256),
-		userID:   user.ID,
-		username: user.Username,
-	}
-	hub.register <- client
+	client := hub.Register(conn, user.ID, user.Username)
 
 	// Start write pump in a goroutine, run read pump on this goroutine
 	// so that when readPump returns, we can exit the handler cleanly.
-	go client.writePump()
-	client.readPump()
+	client.StartClient()
 }
 
 func getEnv(key, defaultValue string) string {
@@ -141,15 +135,21 @@ func main() {
 	db = database.NewDBFromConnection(sqlDB)
 
 	// Initialize auth service
-	authService := Auth.NewAuthService(sqlDB)
-	authHandler := Auth.NewHandler(authService)
+	authService := auth.NewAuthService(sqlDB)
+	authHandler := auth.NewHandler(authService)
 
 	// Initialize friends service
-	friendsService = NewFriendsService(sqlDB)
+	friendsService := handlers.NewFriendsService(sqlDB)
+
+	// Set DB instance for handlers
+	handlers.SetDBInstance(db)
+
+	// Set save message function for websocket
+	websocket.SetSaveMessageFunc(handlers.SaveMessageToDB)
 
 	// Create hub
-	hub := NewHub()
-	go hub.run()
+	hub := websocket.NewHub()
+	go hub.Run()
 
 	// Setup routes
 	mux := http.NewServeMux()
@@ -169,16 +169,16 @@ func main() {
 	})
 
 	// Friends API (protected)
-	mux.HandleFunc("/api/friends", Auth.AuthMiddleware(friendsHandler))
-	mux.HandleFunc("/api/friends/search", Auth.AuthMiddleware(searchUsersHandler))
-	mux.HandleFunc("/api/friends/request", Auth.AuthMiddleware(sendFriendRequestHandler))
-	mux.HandleFunc("/api/friends/requests", Auth.AuthMiddleware(getFriendRequestsHandler))
-	mux.HandleFunc("/api/friends/accept", Auth.AuthMiddleware(acceptFriendRequestHandler))
-	mux.HandleFunc("/api/friends/reject", Auth.AuthMiddleware(rejectFriendRequestHandler))
+	mux.HandleFunc("/api/friends", auth.AuthMiddleware(handlers.FriendsHandler(friendsService)))
+	mux.HandleFunc("/api/friends/search", auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService)))
+	mux.HandleFunc("/api/friends/request", auth.AuthMiddleware(handlers.SendFriendRequestHandler(friendsService)))
+	mux.HandleFunc("/api/friends/requests", auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService)))
+	mux.HandleFunc("/api/friends/accept", auth.AuthMiddleware(handlers.AcceptFriendRequestHandler(friendsService)))
+	mux.HandleFunc("/api/friends/reject", auth.AuthMiddleware(handlers.RejectFriendRequestHandler(friendsService)))
 
 	// Messages API (protected)
-	mux.HandleFunc("/api/messages/history", Auth.AuthMiddleware(getMessageHistoryHandler))
-	mux.HandleFunc("/api/conversations", Auth.AuthMiddleware(getConversationsHandler))
+	mux.HandleFunc("/api/messages/history", auth.AuthMiddleware(handlers.GetMessageHistoryHandler(db)))
+	mux.HandleFunc("/api/conversations", auth.AuthMiddleware(handlers.GetConversationsHandler(db)))
 
 	addr := ":8080"
 	if p := os.Getenv("PORT"); p != "" {
