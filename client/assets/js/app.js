@@ -158,12 +158,20 @@ async function loadConversationsFromAPI() {
     }
 }
 
-// Load friend requests from API
+// Load friend requests from API (with loading flag to prevent concurrent requests)
+let loadingFriendRequests = false;
 async function loadFriendRequestsFromAPI() {
     const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (!userData) return;
 
+    // Prevent concurrent requests
+    if (loadingFriendRequests) {
+        console.log('⏳ Friend requests already loading, skipping...');
+        return;
+    }
+
     try {
+        loadingFriendRequests = true;
         const user = JSON.parse(userData);
         const response = await fetch('http://localhost:8080/api/friends/requests', {
             headers: {
@@ -172,28 +180,46 @@ async function loadFriendRequestsFromAPI() {
         });
 
         if (!response.ok) {
+            // Handle rate limiting gracefully
+            if (response.status === 429) {
+                console.warn('⚠️ Rate limited. Please wait a moment...');
+                return;
+            }
             throw new Error('Failed to load friend requests');
         }
 
         const requests = await response.json();
         console.log('✅ Loaded friend requests:', requests);
         
+        // Handle null or undefined response
+        const requestList = Array.isArray(requests) ? requests : [];
+        
         // Update badge
-        updateFriendRequestBadge(requests.length);
+        updateFriendRequestBadge(requestList.length);
         
         // Render friend requests
-        renderFriendRequests(requests || []);
+        renderFriendRequests(requestList);
     } catch (error) {
         console.error('❌ Error loading friend requests:', error);
+    } finally {
+        loadingFriendRequests = false;
     }
 }
 
-// Load friends list from API
+// Load friends list from API (with loading flag to prevent concurrent requests)
+let loadingFriends = false;
 async function loadFriendsFromAPI() {
     const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (!userData) return;
 
+    // Prevent concurrent requests
+    if (loadingFriends) {
+        console.log('⏳ Friends list already loading, skipping...');
+        return;
+    }
+
     try {
+        loadingFriends = true;
         const user = JSON.parse(userData);
         const response = await fetch('http://localhost:8080/api/friends', {
             headers: {
@@ -212,6 +238,8 @@ async function loadFriendsFromAPI() {
         renderFriends(friends || []);
     } catch (error) {
         console.error('❌ Error loading friends:', error);
+    } finally {
+        loadingFriends = false;
     }
 }
 
@@ -412,6 +440,13 @@ async function acceptFriendRequest(id) {
     if (!userData) return;
 
     try {
+        // Optimistic UI update - Remove the request item immediately
+        const requestItem = document.querySelector(`.friend-request-item[data-id="${id}"]`);
+        if (requestItem) {
+            requestItem.style.opacity = '0.5';
+            requestItem.style.pointerEvents = 'none';
+        }
+        
         const user = JSON.parse(userData);
         const response = await fetch('http://localhost:8080/api/friends/accept', {
             method: 'POST',
@@ -423,6 +458,11 @@ async function acceptFriendRequest(id) {
         });
 
         if (!response.ok) {
+            // Revert UI if failed
+            if (requestItem) {
+                requestItem.style.opacity = '1';
+                requestItem.style.pointerEvents = 'auto';
+            }
             throw new Error('Failed to accept friend request');
         }
 
@@ -431,9 +471,31 @@ async function acceptFriendRequest(id) {
         
         showNotification('✅ Đã chấp nhận lời mời kết bạn!');
         
-        // Reload friend requests and friends list
-        await loadFriendRequestsFromAPI();
+        // Remove the item from DOM
+        if (requestItem) {
+            requestItem.remove();
+        }
+        
+        // Update badge count
+        const remainingRequests = document.querySelectorAll('.friend-request-item').length;
+        updateFriendRequestBadge(remainingRequests);
+        
+        // Wait longer for backend to process and avoid rate limiting
+        await new Promise(resolve => setTimeout(resolve, 1500));
         await loadFriendsFromAPI();
+        
+        // If no more requests, show empty state
+        if (remainingRequests === 0) {
+            const friendRequestsList = document.getElementById('friendRequestsList');
+            friendRequestsList.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #9CA3AF;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" style="margin-bottom: 16px;">
+                        <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+                    </svg>
+                    <p>Chưa có lời mời kết bạn nào</p>
+                </div>
+            `;
+        }
         
     } catch (error) {
         console.error('❌ Error accepting friend request:', error);
@@ -448,6 +510,13 @@ async function declineFriendRequest(id) {
     if (!userData) return;
 
     try {
+        // Optimistic UI update - Remove the request item immediately
+        const requestItem = document.querySelector(`.friend-request-item[data-id="${id}"]`);
+        if (requestItem) {
+            requestItem.style.opacity = '0.5';
+            requestItem.style.pointerEvents = 'none';
+        }
+        
         const user = JSON.parse(userData);
         const response = await fetch('http://localhost:8080/api/friends/reject', {
             method: 'POST',
@@ -459,6 +528,11 @@ async function declineFriendRequest(id) {
         });
 
         if (!response.ok) {
+            // Revert UI if failed
+            if (requestItem) {
+                requestItem.style.opacity = '1';
+                requestItem.style.pointerEvents = 'auto';
+            }
             throw new Error('Failed to reject friend request');
         }
 
@@ -467,8 +541,27 @@ async function declineFriendRequest(id) {
         
         showNotification('Đã từ chối lời mời kết bạn');
         
-        // Reload friend requests
-        await loadFriendRequestsFromAPI();
+        // Remove the item from DOM
+        if (requestItem) {
+            requestItem.remove();
+        }
+        
+        // Update badge count
+        const remainingRequests = document.querySelectorAll('.friend-request-item').length;
+        updateFriendRequestBadge(remainingRequests);
+        
+        // If no more requests, show empty state
+        if (remainingRequests === 0) {
+            const friendRequestsList = document.getElementById('friendRequestsList');
+            friendRequestsList.innerHTML = `
+                <div style="padding: 40px; text-align: center; color: #9CA3AF;">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="currentColor" style="margin-bottom: 16px;">
+                        <path d="M15,14C12.33,14 7,15.33 7,18V20H23V18C23,15.33 17.67,14 15,14M6,10V7H4V10H1V12H4V15H6V12H9V10M15,12A4,4 0 0,0 19,8A4,4 0 0,0 15,4A4,4 0 0,0 11,8A4,4 0 0,0 15,12Z"/>
+                    </svg>
+                    <p>Chưa có lời mời kết bạn nào</p>
+                </div>
+            `;
+        }
         
     } catch (error) {
         console.error('❌ Error rejecting friend request:', error);

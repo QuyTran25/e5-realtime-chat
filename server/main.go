@@ -258,14 +258,18 @@ func main() {
 		_, _ = w.Write([]byte(response))
 	})
 
-	// Friends API with normal rate limiting (protected)
+	// Friends API with rate limiting (protected)
 	if rateLimiter != nil {
 		normalLimit := rateLimiter.RateLimitMiddleware(middleware.NormalLimit)
+		relaxedLimit := rateLimiter.RateLimitMiddleware(middleware.RelaxedLimit)
 
-		mux.Handle("/api/friends", normalLimit(auth.AuthMiddleware(handlers.FriendsHandler(friendsService))))
-		mux.Handle("/api/friends/search", normalLimit(auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService))))
+		// Read endpoints (GET) - Relaxed limit (120 req/min)
+		mux.Handle("/api/friends", relaxedLimit(auth.AuthMiddleware(handlers.FriendsHandler(friendsService))))
+		mux.Handle("/api/friends/search", relaxedLimit(auth.AuthMiddleware(handlers.SearchUsersHandler(friendsService))))
+		mux.Handle("/api/friends/requests", relaxedLimit(auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService))))
+
+		// Write endpoints (POST) - Normal limit (60 req/min)
 		mux.Handle("/api/friends/request", normalLimit(auth.AuthMiddleware(handlers.SendFriendRequestHandler(friendsService))))
-		mux.Handle("/api/friends/requests", normalLimit(auth.AuthMiddleware(handlers.GetFriendRequestsHandler(friendsService))))
 		mux.Handle("/api/friends/accept", normalLimit(auth.AuthMiddleware(handlers.AcceptFriendRequestHandler(friendsService))))
 		mux.Handle("/api/friends/reject", normalLimit(auth.AuthMiddleware(handlers.RejectFriendRequestHandler(friendsService))))
 	} else {
@@ -304,7 +308,10 @@ func main() {
 	log.Printf("📨 Friend Requests: http://localhost%s/api/friends/requests", addr)
 	log.Printf("🎯 Server starting on %s", addr)
 
-	if err := http.ListenAndServe(addr, mux); err != nil {
+	// Wrap with CORS middleware
+	handler := middleware.CORSMiddleware(mux)
+
+	if err := http.ListenAndServe(addr, handler); err != nil {
 		log.Fatalf("❌ Server error: %v", err)
 	}
 }

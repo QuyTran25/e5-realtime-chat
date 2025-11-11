@@ -308,6 +308,11 @@ func friendsHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Ensure we always return an array, never null
+	if friends == nil {
+		friends = []Friend{}
+	}
+
 	w.Header().Set("Content-Type", "application/json")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
 	json.NewEncoder(w).Encode(friends)
@@ -419,6 +424,11 @@ func getFriendRequestsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("❌ Error getting friend requests: %v", err)
 		http.Error(w, "Failed to get friend requests", http.StatusInternalServerError)
 		return
+	}
+
+	// Ensure we always return an array, never null
+	if requests == nil {
+		requests = []Friend{}
 	}
 
 	w.Header().Set("Content-Type", "application/json")
