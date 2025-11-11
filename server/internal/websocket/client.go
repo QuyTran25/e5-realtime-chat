@@ -6,10 +6,19 @@ import (
 	"bytes"
 	"encoding/json"
 	"log"
+	"net/http"
 	"time"
 
 	ws "github.com/gorilla/websocket"
 )
+
+// Upgrader upgrades HTTP requests to WebSocket connections
+var Upgrader = ws.Upgrader{
+	ReadBufferSize:  1024,
+	WriteBufferSize: 1024,
+	// For demo/local dev we allow all origins. In production, restrict this.
+	CheckOrigin: func(r *http.Request) bool { return true },
+}
 
 // các hằng số cấu hình cho việc đọc/ghi message
 // cần đặt timeout và tần suất ping/pong

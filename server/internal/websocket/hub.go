@@ -1,6 +1,9 @@
 package websocket
 
 import (
+	"e5realtimechat/internal/cache"
+	"log"
+
 	ws "github.com/gorilla/websocket"
 )
 
@@ -14,13 +17,14 @@ type WSMessage struct {
 	User       string `json:"user"`
 }
 
-//// Hub quản lý tất cả client đang kết nối và phân phối tin nhắn giữa họ
+// // Hub quản lý tất cả client đang kết nối và phân phối tin nhắn giữa họ
 type Hub struct {
-	clients    map[*Client]bool
-	broadcast  chan []byte
-	directMsg  chan *DirectMessage // channel for direct messages
-	register   chan *Client
-	unregister chan *Client
+	clients      map[*Client]bool
+	broadcast    chan []byte
+	directMsg    chan *DirectMessage // channel for direct messages
+	register     chan *Client
+	unregister   chan *Client
+	cacheService *cache.CacheService // Redis cache for online status
 }
 
 // DirectMessage contains message and target user ID
@@ -29,18 +33,24 @@ type DirectMessage struct {
 	toUserID int
 }
 
-//NewHub khởi tạo 1 hub mới
+// NewHub khởi tạo 1 hub mới
 func NewHub() *Hub {
 	return &Hub{
-		clients:    make(map[*Client]bool),
-		broadcast:  make(chan []byte),
-		directMsg:  make(chan *DirectMessage),
-		register:   make(chan *Client),
-		unregister: make(chan *Client),
+		clients:      make(map[*Client]bool),
+		broadcast:    make(chan []byte),
+		directMsg:    make(chan *DirectMessage),
+		register:     make(chan *Client),
+		unregister:   make(chan *Client),
+		cacheService: nil,
 	}
 }
 
-//// Run chạy liên tục, xử lý các sự kiện từ các channel
+// SetCacheService sets the cache service for the hub
+func (h *Hub) SetCacheService(cacheService *cache.CacheService) {
+	h.cacheService = cacheService
+}
+
+// // Run chạy liên tục, xử lý các sự kiện từ các channel
 func (h *Hub) Run() {
 	for {
 		select {
@@ -48,11 +58,29 @@ func (h *Hub) Run() {
 			//thêm client mới vào danh sách
 			h.clients[client] = true
 
+			// Mark user as online in cache
+			if h.cacheService != nil && client.userID > 0 {
+				if err := h.cacheService.SetUserOnline(client.userID); err != nil {
+					log.Printf("⚠️ Failed to set user %d online: %v", client.userID, err)
+				} else {
+					log.Printf("✅ User %d (%s) is now ONLINE", client.userID, client.username)
+				}
+			}
+
 		case client := <-h.unregister:
 			//xóa client khi ngắt kết nối
 			if _, ok := h.clients[client]; ok {
 				delete(h.clients, client)
 				close(client.send)
+
+				// Mark user as offline in cache
+				if h.cacheService != nil && client.userID > 0 {
+					if err := h.cacheService.SetUserOffline(client.userID); err != nil {
+						log.Printf("⚠️ Failed to set user %d offline: %v", client.userID, err)
+					} else {
+						log.Printf("👋 User %d (%s) is now OFFLINE", client.userID, client.username)
+					}
+				}
 			}
 
 		case message := <-h.broadcast:

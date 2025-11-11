@@ -4,16 +4,12 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"sync"
 	"time"
 
 	"golang.org/x/crypto/bcrypt"
 )
 
 var (
-	// In-memory token blacklist (use Redis in production)
-	tokenBlacklist  = make(map[string]time.Time)
-	blacklistMutex  sync.RWMutex
 	ErrInvalidCreds = errors.New("invalid credentials")
 	ErrUserExists   = errors.New("user already exists")
 	ErrUserNotFound = errors.New("user not found")
@@ -159,30 +155,4 @@ func (s *AuthService) GetUserByID(userID int) (*User, error) {
 	}
 
 	return user, nil
-}
-
-// BlacklistToken adds token to blacklist
-func BlacklistToken(token string, expiry time.Time) {
-	blacklistMutex.Lock()
-	defer blacklistMutex.Unlock()
-	tokenBlacklist[token] = expiry
-}
-
-// IsTokenBlacklisted checks if token is blacklisted
-func IsTokenBlacklisted(token string) bool {
-	blacklistMutex.RLock()
-	defer blacklistMutex.RUnlock()
-
-	expiry, exists := tokenBlacklist[token]
-	if !exists {
-		return false
-	}
-
-	// Clean up expired tokens
-	if time.Now().After(expiry) {
-		delete(tokenBlacklist, token)
-		return false
-	}
-
-	return true
 }

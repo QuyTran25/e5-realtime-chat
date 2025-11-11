@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"e5realtimechat/internal/auth"
+	"e5realtimechat/internal/cache"
 )
 
 // Cấu trúc dữ liệu bạn bè
@@ -25,16 +26,50 @@ type Friend struct {
 
 // FriendsService handles friend-related operations
 type FriendsService struct {
-	db *sql.DB
+	db           *sql.DB
+	cacheService *cache.CacheService
 }
 
 // NewFriendsService creates a new friends service
 func NewFriendsService(db *sql.DB) *FriendsService {
-	return &FriendsService{db: db}
+	return &FriendsService{
+		db:           db,
+		cacheService: nil, // Will be set later
+	}
 }
 
-// GetUserFriends retrieves all accepted friends for a user
+// SetCacheService sets the cache service for the friends service
+func (s *FriendsService) SetCacheService(cacheService *cache.CacheService) {
+	s.cacheService = cacheService
+}
+
+// GetUserFriends retrieves all accepted friends for a user (with caching)
 func (s *FriendsService) GetUserFriends(userID int) ([]Friend, error) {
+	// Try to get from cache first
+	if s.cacheService != nil {
+		cachedFriends, err := s.cacheService.GetFriendsList(userID)
+		if err == nil && len(cachedFriends) > 0 {
+			log.Printf("✅ Cache HIT: Friends list for user %d", userID)
+			// Convert cache.Friend to handlers.Friend
+			friends := make([]Friend, len(cachedFriends))
+			for i, cf := range cachedFriends {
+				friends[i] = Friend{
+					ID:        cf.ID,
+					Username:  cf.Username,
+					Name:      cf.Username,
+					Email:     cf.Email,
+					Avatar:    cf.AvatarURL,
+					AvatarURL: cf.AvatarURL,
+					Online:    cf.IsOnline,
+					IsOnline:  cf.IsOnline,
+				}
+			}
+			return friends, nil
+		}
+		log.Printf("⚠️ Cache MISS: Friends list for user %d", userID)
+	}
+
+	// Cache miss or no cache - fetch from database
 	query := `
 		SELECT u.id, u.username, u.email, COALESCE(u.avatar_url, ''), u.is_online
 		FROM users u
@@ -63,6 +98,25 @@ func (s *FriendsService) GetUserFriends(userID int) ([]Friend, error) {
 		friend.Avatar = friend.AvatarURL
 		friend.Online = friend.IsOnline
 		friends = append(friends, friend)
+	}
+
+	// Store in cache for next time
+	if s.cacheService != nil && len(friends) > 0 {
+		cacheFriends := make([]cache.Friend, len(friends))
+		for i, f := range friends {
+			cacheFriends[i] = cache.Friend{
+				ID:        f.ID,
+				Username:  f.Username,
+				Email:     f.Email,
+				AvatarURL: f.AvatarURL,
+				IsOnline:  f.IsOnline,
+			}
+		}
+		if err := s.cacheService.SetFriendsList(userID, cacheFriends); err != nil {
+			log.Printf("⚠️ Failed to cache friends list: %v", err)
+		} else {
+			log.Printf("✅ Cached friends list for user %d", userID)
+		}
 	}
 
 	return friends, nil
@@ -135,6 +189,13 @@ func (s *FriendsService) SendFriendRequest(fromUserID, toUserID int) error {
 		INSERT INTO friendships (user_id, friend_id, status, created_at)
 		VALUES ($1, $2, 'pending', NOW())
 	`, fromUserID, toUserID)
+
+	// Invalidate cache for both users
+	if s.cacheService != nil {
+		s.cacheService.InvalidateFriendsList(fromUserID)
+		s.cacheService.InvalidateFriendsList(toUserID)
+	}
+
 	return err
 }
 
@@ -153,6 +214,13 @@ func (s *FriendsService) AcceptFriendRequest(userID, friendID int) error {
 	if rows == 0 {
 		return auth.ErrUserNotFound // No pending request found
 	}
+
+	// Invalidate cache for both users
+	if s.cacheService != nil {
+		s.cacheService.InvalidateFriendsList(userID)
+		s.cacheService.InvalidateFriendsList(friendID)
+	}
+
 	return nil
 }
 
@@ -170,6 +238,13 @@ func (s *FriendsService) RejectFriendRequest(userID, friendID int) error {
 	if rows == 0 {
 		return auth.ErrUserNotFound
 	}
+
+	// Invalidate cache for both users
+	if s.cacheService != nil {
+		s.cacheService.InvalidateFriendsList(userID)
+		s.cacheService.InvalidateFriendsList(friendID)
+	}
+
 	return nil
 }
 
@@ -437,4 +512,42 @@ func rejectFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 		"success": true,
 		"message": "Friend request rejected",
 	})
+}
+
+// Exported handlers for main.go
+
+// FriendsHandler returns handler for getting friends list
+func FriendsHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return friendsHandler
+}
+
+// SearchUsersHandler returns handler for searching users
+func SearchUsersHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return searchUsersHandler
+}
+
+// SendFriendRequestHandler returns handler for sending friend requests
+func SendFriendRequestHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return sendFriendRequestHandler
+}
+
+// GetFriendRequestsHandler returns handler for getting friend requests
+func GetFriendRequestsHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return getFriendRequestsHandler
+}
+
+// AcceptFriendRequestHandler returns handler for accepting friend requests
+func AcceptFriendRequestHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return acceptFriendRequestHandler
+}
+
+// RejectFriendRequestHandler returns handler for rejecting friend requests
+func RejectFriendRequestHandler(service *FriendsService) http.HandlerFunc {
+	friendsService = service
+	return rejectFriendRequestHandler
 }

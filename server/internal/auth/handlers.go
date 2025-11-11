@@ -212,8 +212,13 @@ func (h *Handler) handleLogout(w http.ResponseWriter, r *http.Request) {
 
 	log.Printf("🚪 Logout: userID=%d, username=%s", claims.UserID, claims.Username)
 
-	// Blacklist the token
-	BlacklistToken(tokenString, claims.ExpiresAt.Time)
+	// Blacklist the token with TTL until expiration
+	ttl := time.Until(claims.ExpiresAt.Time)
+	if ttl > 0 {
+		if err := BlacklistToken(tokenString, ttl); err != nil {
+			log.Printf("⚠️ Failed to blacklist token: %v", err)
+		}
+	}
 
 	// Update user online status
 	if err := h.service.LogoutUser(claims.UserID); err != nil {

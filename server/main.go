@@ -9,11 +9,12 @@ import (
 	"strings"
 
 	"e5realtimechat/internal/auth"
+	"e5realtimechat/internal/cache"
 	"e5realtimechat/internal/database"
 	"e5realtimechat/internal/handlers"
+	"e5realtimechat/internal/queue"
 	"e5realtimechat/internal/websocket"
 
-	"github.com/gorilla/websocket"
 	_ "github.com/lib/pq"
 )
 
@@ -32,14 +33,6 @@ type Message struct {
 	Text  string  `json:"text,omitempty"`
 	User  string  `json:"user,omitempty"`
 	Value float64 `json:"value,omitempty"`
-}
-
-// Upgrader upgrades HTTP requests to WebSocket connections.
-var upgrader = websocket.Upgrader{
-	ReadBufferSize:  1024,
-	WriteBufferSize: 1024,
-	// For demo/local dev we allow all origins. In production, restrict this.
-	CheckOrigin: func(r *http.Request) bool { return true },
 }
 
 // serveWs handles WebSocket requests from the peer (with authentication).
@@ -86,7 +79,7 @@ func serveWs(hub *websocket.Hub, authService *auth.AuthService, w http.ResponseW
 	}
 
 	// Upgrade connection
-	conn, err := upgrader.Upgrade(w, r, nil)
+	conn, err := websocket.Upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("❌ websocket upgrade error: %v", err)
 		return
@@ -131,6 +124,65 @@ func main() {
 	}
 	log.Println("✅ Connected to PostgreSQL database")
 
+	// Initialize Redis cache
+	redisHost := getEnv("REDIS_HOST", "localhost")
+	redisPort := getEnv("REDIS_PORT", "6379")
+	redisAddr := fmt.Sprintf("%s:%s", redisHost, redisPort)
+
+	redisClient, err := cache.NewRedisClient(redisAddr, "", 0)
+	if err != nil {
+		log.Printf("⚠️  Failed to connect to Redis: %v", err)
+		log.Println("⚠️  Running without Redis cache (using in-memory fallback)")
+		redisClient = nil
+	}
+
+	// Initialize cache service
+	var cacheService *cache.CacheService
+	if redisClient != nil {
+		cacheService = cache.NewCacheService(redisClient)
+		defer redisClient.Close()
+	}
+
+	// Initialize token blacklist with cache
+	auth.InitTokenBlacklist(cacheService)
+
+	// Initialize RabbitMQ
+	rabbitmqHost := getEnv("RABBITMQ_HOST", "localhost")
+	rabbitmqPort := getEnv("RABBITMQ_PORT", "5672")
+	rabbitmqUser := getEnv("RABBITMQ_USER", "chatuser")
+	rabbitmqPass := getEnv("RABBITMQ_PASS", "chatpass")
+
+	rabbitMQ, err := queue.NewRabbitMQ(rabbitmqHost, rabbitmqPort, rabbitmqUser, rabbitmqPass)
+	if err != nil {
+		log.Printf("⚠️  Failed to connect to RabbitMQ: %v", err)
+		log.Println("⚠️  Running without message queue")
+		rabbitMQ = nil
+	} else {
+		defer rabbitMQ.Close()
+	}
+
+	// Initialize message service
+	var messageService *queue.MessageService
+	if rabbitMQ != nil {
+		messageService = queue.NewMessageService(rabbitMQ)
+
+		// Start consumers
+		if err := messageService.StartMessageNotificationConsumer(); err != nil {
+			log.Printf("⚠️  Failed to start message notification consumer: %v", err)
+		}
+		if err := messageService.StartEmailNotificationConsumer(); err != nil {
+			log.Printf("⚠️  Failed to start email notification consumer: %v", err)
+		}
+		if err := messageService.StartMessageProcessingConsumer(); err != nil {
+			log.Printf("⚠️  Failed to start message processing consumer: %v", err)
+		}
+		if err := messageService.StartEventBroadcastConsumer(); err != nil {
+			log.Printf("⚠️  Failed to start event broadcast consumer: %v", err)
+		}
+
+		log.Println("✅ All RabbitMQ consumers started")
+	}
+
 	// Initialize database wrapper
 	db = database.NewDBFromConnection(sqlDB)
 
@@ -141,6 +193,11 @@ func main() {
 	// Initialize friends service
 	friendsService := handlers.NewFriendsService(sqlDB)
 
+	// Set cache service for friends service
+	if cacheService != nil {
+		friendsService.SetCacheService(cacheService)
+	}
+
 	// Set DB instance for handlers
 	handlers.SetDBInstance(db)
 
@@ -149,6 +206,12 @@ func main() {
 
 	// Create hub
 	hub := websocket.NewHub()
+
+	// Set cache service for online status tracking
+	if cacheService != nil {
+		hub.SetCacheService(cacheService)
+	}
+
 	go hub.Run()
 
 	// Setup routes
@@ -162,10 +225,13 @@ func main() {
 		serveWs(hub, authService, w, r)
 	})
 
-	// Health check
+	// Health check with instance info
+	instanceID := getEnv("HOSTNAME", "unknown")
 	mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
 		w.WriteHeader(http.StatusOK)
-		_, _ = w.Write([]byte("ok"))
+		response := fmt.Sprintf(`{"status":"ok","instance":"%s"}`, instanceID)
+		_, _ = w.Write([]byte(response))
 	})
 
 	// Friends API (protected)
