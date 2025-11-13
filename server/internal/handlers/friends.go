@@ -28,6 +28,12 @@ type Friend struct {
 type FriendsService struct {
 	db           *sql.DB
 	cacheService *cache.CacheService
+	hub          HubInterface // WebSocket hub for realtime notifications
+}
+
+// HubInterface defines methods needed from websocket Hub
+type HubInterface interface {
+	SendDirectMessage(message []byte, toUserID int)
 }
 
 // NewFriendsService creates a new friends service
@@ -35,12 +41,18 @@ func NewFriendsService(db *sql.DB) *FriendsService {
 	return &FriendsService{
 		db:           db,
 		cacheService: nil, // Will be set later
+		hub:          nil, // Will be set later
 	}
 }
 
 // SetCacheService sets the cache service for the friends service
 func (s *FriendsService) SetCacheService(cacheService *cache.CacheService) {
 	s.cacheService = cacheService
+}
+
+// SetHub sets the WebSocket hub for realtime notifications
+func (s *FriendsService) SetHub(hub HubInterface) {
+	s.hub = hub
 }
 
 // GetUserFriends retrieves all accepted friends for a user (NO caching of online status)
@@ -378,6 +390,24 @@ func sendFriendRequestHandler(w http.ResponseWriter, r *http.Request) {
 		log.Printf("❌ Error sending friend request: %v", err)
 		http.Error(w, "Failed to send friend request", http.StatusInternalServerError)
 		return
+	}
+
+	// Send realtime notification via WebSocket
+	if friendsService.hub != nil {
+		// Get sender info
+		var senderUsername string
+		err := friendsService.db.QueryRow("SELECT username FROM users WHERE id = $1", claims.UserID).Scan(&senderUsername)
+		if err == nil {
+			notification := map[string]interface{}{
+				"type":          "friend_request_received",
+				"from_user_id":  claims.UserID,
+				"from_username": senderUsername,
+				"message":       "You have a new friend request",
+			}
+			notifBytes, _ := json.Marshal(notification)
+			friendsService.hub.SendDirectMessage(notifBytes, req.FriendID)
+			log.Printf("📬 Sent friend request notification to user %d", req.FriendID)
+		}
 	}
 
 	w.Header().Set("Content-Type", "application/json")

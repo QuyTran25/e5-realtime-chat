@@ -153,6 +153,23 @@ function handleIncomingMessage(message) {
         return;
     }
 
+    // Handle friend request notification
+    if (message.type === 'friend_request_received') {
+        console.log('🔔 Friend request received:', message);
+        
+        // Show notification
+        if (window.showNotification) {
+            window.showNotification(`📬 ${message.from_username} đã gửi lời mời kết bạn!`);
+        }
+        
+        // Reload friend requests to update badge and list
+        if (window.loadFriendRequestsFromAPI) {
+            window.loadFriendRequestsFromAPI();
+        }
+        
+        return;
+    }
+
     // Handle incoming message
     if (message.type === 'message') {
         const isFromMe = message.from_user_id === currentUser.id;

@@ -220,6 +220,9 @@ func main() {
 	// Create hub
 	hub := websocket.NewHub()
 
+	// Set hub for friends service (for realtime notifications)
+	friendsService.SetHub(hub)
+
 	// Set cache service for online status tracking
 	if cacheService != nil {
 		hub.SetCacheService(cacheService)
