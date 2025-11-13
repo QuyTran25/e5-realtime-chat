@@ -29,29 +29,29 @@ type RateLimitConfig struct {
 var (
 	// Strict limit for sensitive endpoints (login, register)
 	StrictLimit = RateLimitConfig{
-		RequestsPerMinute: 10,
-		BurstSize:         20,
+		RequestsPerMinute: 30, // Increased from 10
+		BurstSize:         50, // Increased from 20
 		Window:            time.Minute,
 	}
 
 	// Normal limit for regular API endpoints
 	NormalLimit = RateLimitConfig{
-		RequestsPerMinute: 60,
-		BurstSize:         100,
+		RequestsPerMinute: 300, // Increased from 60
+		BurstSize:         500, // Increased from 100
 		Window:            time.Minute,
 	}
 
 	// Relaxed limit for read-only endpoints
 	RelaxedLimit = RateLimitConfig{
-		RequestsPerMinute: 120,
-		BurstSize:         200,
+		RequestsPerMinute: 600,  // Increased from 120
+		BurstSize:         1000, // Increased from 200
 		Window:            time.Minute,
 	}
 
 	// WebSocket message rate limit (per user)
 	WSMessageLimit = RateLimitConfig{
-		RequestsPerMinute: 60,
-		BurstSize:         10,
+		RequestsPerMinute: 120, // Increased from 60
+		BurstSize:         50,  // Increased from 10
 		Window:            time.Minute,
 	}
 )

@@ -191,6 +191,11 @@ func main() {
 	authService := auth.NewAuthService(sqlDB)
 	authHandler := auth.NewHandler(authService)
 
+	// Set cache service for auth service
+	if cacheService != nil {
+		authService.SetCacheService(cacheService)
+	}
+
 	// Initialize friends service
 	friendsService := handlers.NewFriendsService(sqlDB)
 

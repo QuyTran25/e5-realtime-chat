@@ -2,6 +2,7 @@ package auth
 
 import (
 	"database/sql"
+	"e5realtimechat/internal/cache"
 	"errors"
 	"fmt"
 	"time"
@@ -17,12 +18,21 @@ var (
 
 // AuthService handles authentication business logic
 type AuthService struct {
-	db *sql.DB
+	db           *sql.DB
+	cacheService *cache.CacheService
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(db *sql.DB) *AuthService {
-	return &AuthService{db: db}
+	return &AuthService{
+		db:           db,
+		cacheService: nil,
+	}
+}
+
+// SetCacheService sets the cache service
+func (s *AuthService) SetCacheService(cacheService *cache.CacheService) {
+	s.cacheService = cacheService
 }
 
 // RegisterUser creates a new user account
@@ -111,11 +121,18 @@ func (s *AuthService) LoginUser(req LoginRequest) (*User, error) {
 		return nil, ErrInvalidCreds
 	}
 
-	// Update online status
+	// Update online status in PostgreSQL
 	_, err = s.db.Exec("UPDATE users SET is_online = true, last_seen_at = NOW() WHERE id = $1", user.ID)
 	if err != nil {
 		// Log error but don't fail login
-		fmt.Printf("Warning: failed to update online status: %v\n", err)
+		fmt.Printf("Warning: failed to update online status in DB: %v\n", err)
+	}
+
+	// Also set online in Redis cache
+	if s.cacheService != nil {
+		if err := s.cacheService.SetUserOnline(user.ID); err != nil {
+			fmt.Printf("Warning: failed to set user online in Redis: %v\n", err)
+		}
 	}
 
 	user.IsOnline = true
@@ -124,8 +141,20 @@ func (s *AuthService) LoginUser(req LoginRequest) (*User, error) {
 
 // LogoutUser marks user as offline
 func (s *AuthService) LogoutUser(userID int) error {
+	// Update PostgreSQL
 	_, err := s.db.Exec("UPDATE users SET is_online = false, last_seen_at = NOW() WHERE id = $1", userID)
-	return err
+	if err != nil {
+		return err
+	}
+
+	// Also set offline in Redis cache
+	if s.cacheService != nil {
+		if err := s.cacheService.SetUserOffline(userID); err != nil {
+			fmt.Printf("Warning: failed to set user offline in Redis: %v\n", err)
+		}
+	}
+
+	return nil
 }
 
 // GetUserByID retrieves user by ID

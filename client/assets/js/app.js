@@ -120,17 +120,31 @@ function initializeDemoData() {
 }
 
 // Load conversations from API
+let loadingConversations = false;
 async function loadConversationsFromAPI() {
     const userData = localStorage.getItem('user') || sessionStorage.getItem('user');
     if (!userData) return;
 
+    // Prevent concurrent requests
+    if (loadingConversations) {
+        console.log('⏳ Conversations already loading, skipping...');
+        return;
+    }
+
     try {
+        loadingConversations = true;
         const user = JSON.parse(userData);
         const response = await fetch('http://localhost:8080/api/conversations', {
             headers: {
                 'Authorization': `Bearer ${user.token}`
             }
         });
+
+        if (response.status === 429) {
+            console.warn('⚠️ Rate limited. Will retry in 3 seconds...');
+            setTimeout(() => loadConversationsFromAPI(), 3000);
+            return;
+        }
 
         if (!response.ok) {
             throw new Error('Failed to load conversations');
@@ -155,6 +169,8 @@ async function loadConversationsFromAPI() {
         }
     } catch (error) {
         console.error('❌ Error loading conversations:', error);
+    } finally {
+        loadingConversations = false;
     }
 }
 
@@ -179,12 +195,13 @@ async function loadFriendRequestsFromAPI() {
             }
         });
 
+        if (response.status === 429) {
+            console.warn('⚠️ Rate limited. Will retry in 4 seconds...');
+            setTimeout(() => loadFriendRequestsFromAPI(), 4000);
+            return;
+        }
+
         if (!response.ok) {
-            // Handle rate limiting gracefully
-            if (response.status === 429) {
-                console.warn('⚠️ Rate limited. Please wait a moment...');
-                return;
-            }
             throw new Error('Failed to load friend requests');
         }
 
@@ -226,6 +243,12 @@ async function loadFriendsFromAPI() {
                 'Authorization': `Bearer ${user.token}`
             }
         });
+
+        if (response.status === 429) {
+            console.warn('⚠️ Rate limited. Will retry in 2 seconds...');
+            setTimeout(() => loadFriendsFromAPI(), 2000);
+            return;
+        }
 
         if (!response.ok) {
             throw new Error('Failed to load friends');

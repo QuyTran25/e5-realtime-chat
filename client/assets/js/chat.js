@@ -165,6 +165,7 @@ document.addEventListener("DOMContentLoaded", function () {
     list.forEach(friend => {
       const item = document.createElement("div");
       item.classList.add("friend-item");
+      item.setAttribute('data-user-id', friend.id);
       item.style.cursor = "pointer";
       item.innerHTML = `
         <div class="friend-avatar">
@@ -241,6 +242,7 @@ document.addEventListener("DOMContentLoaded", function () {
     results.forEach(user => {
       const div = document.createElement("div");
       div.classList.add("search-result-item");
+      div.setAttribute('data-user-id', user.id);
       div.style.cursor = "pointer";
       div.style.padding = "10px";
       div.style.borderBottom = "1px solid #eee";
@@ -252,8 +254,9 @@ document.addEventListener("DOMContentLoaded", function () {
       const isPending = user.status === 'pending';
 
       div.innerHTML = `
-        <div class="result-avatar" style="width: 40px; height: 40px; border-radius: 50%; overflow: hidden;">
+        <div class="result-avatar" style="position: relative; width: 40px; height: 40px; border-radius: 50%; overflow: hidden;">
           <img src="${user.avatar || user.avatar_url || '../assets/images/default-avatar.svg'}" alt="Avatar" style="width: 100%; height: 100%; object-fit: cover;">
+          <span class="status ${user.online || user.is_online ? 'online' : 'offline'}" style="position: absolute; bottom: 0; right: 0;"></span>
         </div>
         <div class="result-info" style="flex: 1;">
           <h4 style="margin: 0; font-size: 14px;">${user.name || user.username}</h4>
@@ -388,4 +391,7 @@ document.addEventListener("DOMContentLoaded", function () {
       });
     }
   }
+  
+  // Export loadFriends globally for websocket.js to use
+  window.loadFriends = loadFriends;
 });

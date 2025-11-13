@@ -4,6 +4,7 @@
 
 let ws = null;
 let reconnectInterval = null;
+let heartbeatInterval = null;
 let currentUser = null;
 let activeConversation = null; // Store current conversation user
 let unreadMessages = {}; // Track unread messages per user: {userId: count}
@@ -72,6 +73,9 @@ function initWebSocket() {
             type: 'join',
             user: currentUser.name || currentUser.email
         });
+
+        // Start heartbeat - send every 20 seconds
+        startHeartbeat();
     };
 
     ws.onmessage = function(event) {
@@ -90,6 +94,9 @@ function initWebSocket() {
 
     ws.onclose = function(event) {
         console.log('🔌 WebSocket disconnected. Code:', event.code, 'Reason:', event.reason);
+        
+        // Stop heartbeat
+        stopHeartbeat();
         
         // Nếu đóng vì unauthorized (1008), redirect về login
         if (event.code === 1008 || event.reason.includes('Unauthorized')) {
@@ -133,12 +140,25 @@ function handleIncomingMessage(message) {
     
     const chatMessages = document.querySelector('.chat-messages');
 
+    // Handle user status changes
+    if (message.type === 'user_status') {
+        console.log('👤 User status changed:', message.user_id, message.username, message.is_online ? 'ONLINE' : 'OFFLINE');
+        updateUserOnlineStatus(message.user_id, message.is_online);
+        return;
+    }
+
+    // Handle heartbeat acknowledgment
+    if (message.type === 'heartbeat_ack') {
+        console.log('💚 Heartbeat acknowledged');
+        return;
+    }
+
     // Handle incoming message
     if (message.type === 'message') {
         const isFromMe = message.from_user_id === currentUser.id;
         const isToMe = message.to_user_id === currentUser.id;
 
-        console.log('🔍 Message check:', {
+        console.log('🔍 Message received:', {
             isFromMe,
             isToMe,
             myId: currentUser.id,
@@ -147,10 +167,8 @@ function handleIncomingMessage(message) {
             activeConversationId: activeConversation?.id
         });
 
-        // Display logic:
-        // 1. If I sent this message -> ALWAYS SHOW (I just sent it, should see it immediately)
-        // 2. If someone sent me a message and I'm viewing conversation with them -> SHOW
-        // 3. If someone sent me a message but I'm not viewing conversation -> Update list only + increment unread
+        // Check if we should display this message
+        let shouldDisplay = false;
         
         if (activeConversation) {
             const isChatWithActiveUser = 
@@ -158,82 +176,79 @@ function handleIncomingMessage(message) {
                 (isToMe && message.from_user_id === activeConversation.id);   // Active user sent to me
             
             console.log('🔍 isChatWithActiveUser:', isChatWithActiveUser);
+            shouldDisplay = isChatWithActiveUser;
             
-            if (!isChatWithActiveUser) {
-                // Message for different conversation, don't display
-                console.log('⏭️ Message not for current conversation, skipping display');
-                
-                // 🔔 Increment unread count if message is TO me
-                if (isToMe) {
-                    const senderId = message.from_user_id;
-                    unreadMessages[senderId] = (unreadMessages[senderId] || 0) + 1;
-                    console.log('🔔 Unread count updated:', unreadMessages);
-                    updateNotificationBadges();
-                }
-                
-                // Update conversation list in background
-                if (window.updateConversationList) {
-                    window.updateConversationList();
-                }
-                return;
-            }
-            // Message is for current conversation, display it below
-        } else {
-            // No active conversation
-            if (isFromMe) {
-                // I just sent a message, display it immediately even if no active conversation
-                console.log('✅ My message, displaying immediately');
-            } else {
-                // Someone sent me a message but no active conversation, only update list
-                console.log('⏭️ No active conversation, only updating list');
-                
-                // 🔔 Increment unread count
+            if (!isChatWithActiveUser && isToMe) {
+                // Message for different conversation - update unread count
                 const senderId = message.from_user_id;
                 unreadMessages[senderId] = (unreadMessages[senderId] || 0) + 1;
                 console.log('🔔 Unread count updated:', unreadMessages);
                 updateNotificationBadges();
-                
-                if (window.updateConversationList) {
-                    window.updateConversationList();
-                }
-                return;
+            }
+        } else {
+            // No active conversation - only display if it's my message
+            shouldDisplay = isFromMe;
+            
+            if (!isFromMe && isToMe) {
+                // Incoming message but no active conversation - update unread
+                const senderId = message.from_user_id;
+                unreadMessages[senderId] = (unreadMessages[senderId] || 0) + 1;
+                console.log('🔔 Unread count updated:', unreadMessages);
+                updateNotificationBadges();
             }
         }
 
-        // Update conversation list after displaying message
+        // Update conversation list
         if (window.updateConversationList) {
             window.updateConversationList();
         }
+
+        // If we shouldn't display, stop here
+        if (!shouldDisplay) {
+            console.log('⏭️ Message not displayed (not for current conversation)');
+            return;
+        }
+
+        // Display the message
+        if (!chatMessages) {
+            console.warn('⚠️ chatMessages element not found');
+            return;
+        }
+
+        const messageDiv = document.createElement('div');
+        const isMyMessage = message.from_user_id === currentUser.id;
+        messageDiv.className = isMyMessage ? 'message own' : 'message';
+        console.log('💬 Displaying message. isMyMessage:', isMyMessage);
+        
+        if (isMyMessage) {
+            messageDiv.innerHTML = `
+                <div class="message-content">
+                    <div class="message-bubble">${escapeHtml(message.text)}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+            `;
+        } else {
+            messageDiv.innerHTML = `
+                <img src="${activeConversation?.avatar || '../assets/images/default-avatar.svg'}" alt="${message.from}" class="message-avatar">
+                <div class="message-content">
+                    <div class="message-bubble">${escapeHtml(message.text)}</div>
+                    <div class="message-time">${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                </div>
+            `;
+        }
+        
+        chatMessages.appendChild(messageDiv);
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+        console.log('✅ Message displayed successfully');
+        return;
     }
 
+    // Handle other message types (join, leave, etc.)
     if (!chatMessages) return;
 
     const messageDiv = document.createElement('div');
     
     switch (message.type) {
-        case 'message':
-            const isMyMessage = message.from_user_id === currentUser.id;
-            messageDiv.className = isMyMessage ? 'message own' : 'message';
-            console.log('💬 Displaying message. isMyMessage:', isMyMessage, 'className:', messageDiv.className);
-            
-            if (isMyMessage) {
-                messageDiv.innerHTML = `
-                    <div class="message-content">
-                        <div class="message-bubble">${escapeHtml(message.text)}</div>
-                        <div class="message-time">${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
-                    </div>
-                `;
-            } else {
-                messageDiv.innerHTML = `
-                    <img src="${activeConversation?.avatar || '../assets/images/default-avatar.svg'}" alt="${message.from}" class="message-avatar">
-                    <div class="message-content">
-                        <div class="message-bubble">${escapeHtml(message.text)}</div>
-                        <div class="message-time">${new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
-                    </div>
-                `;
-            }
-            break;
-
         case 'join':
             messageDiv.className = 'message system';
             // messageDiv.textContent = `✅ ${message.user} đã tham gia`;
@@ -278,7 +293,7 @@ function logout() {
         try {
             const user = JSON.parse(userData);
             
-            // Gọi API logout
+            // 1. First, call API logout and wait for response
             fetch('http://localhost:8080/api/auth/logout', {
                 method: 'POST',
                 headers: {
@@ -288,28 +303,39 @@ function logout() {
             })
             .then(response => response.json())
             .then(data => {
-                console.log('✅ Logout successful:', data);
+                console.log('✅ Logout API successful:', data);
             })
             .catch(error => {
-                console.error('❌ Logout error:', error);
+                console.error('❌ Logout API error:', error);
             })
             .finally(() => {
-                // Đóng WebSocket
-                if (ws) {
+                // 2. Stop heartbeat
+                stopHeartbeat();
+                
+                // 3. Send leave message
+                if (ws && ws.readyState === WebSocket.OPEN) {
                     sendMessage({ type: 'leave', user: user.name || user.email });
+                }
+                
+                // 4. Close WebSocket (this will trigger SetUserOffline in backend)
+                if (ws) {
                     ws.close();
                 }
 
-                // Xóa session
+                // 5. Clear session storage
                 localStorage.removeItem('user');
                 sessionStorage.removeItem('user');
 
-                // Redirect về login
-                window.location.href = 'login.html';
+                // 6. Redirect to login after a short delay to ensure WebSocket closes
+                setTimeout(() => {
+                    window.location.href = 'login.html';
+                }, 300);
             });
         } catch (e) {
             console.error('❌ Logout error:', e);
             // Vẫn xóa session và redirect
+            stopHeartbeat();
+            if (ws) ws.close();
             localStorage.removeItem('user');
             sessionStorage.removeItem('user');
             window.location.href = 'login.html';
@@ -526,3 +552,131 @@ function updateNotificationBadges() {
         window.updateConversationList();
     }
 }
+
+// ========================
+// 💓 Heartbeat Management
+// ========================
+
+function startHeartbeat() {
+    // Clear any existing heartbeat
+    stopHeartbeat();
+    
+    // Send heartbeat every 20 seconds
+    heartbeatInterval = setInterval(() => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+            sendMessage({ type: 'heartbeat' });
+            console.log('💓 Heartbeat sent');
+        }
+    }, 20000);
+    
+    console.log('✅ Heartbeat started (every 20s)');
+}
+
+function stopHeartbeat() {
+    if (heartbeatInterval) {
+        clearInterval(heartbeatInterval);
+        heartbeatInterval = null;
+        console.log('❌ Heartbeat stopped');
+    }
+}
+
+// ========================
+// 👤 User Status Management
+// ========================
+
+function updateUserOnlineStatus(userId, isOnline) {
+    console.log(`🔄 Updating UI for user ${userId} - ${isOnline ? 'ONLINE' : 'OFFLINE'}`);
+    
+    // Update in friends list
+    const friendItems = document.querySelectorAll('.friend-item');
+    console.log(`🔍 Found ${friendItems.length} friend items`);
+    friendItems.forEach(item => {
+        const friendId = item.getAttribute('data-user-id');
+        if (friendId && parseInt(friendId) === userId) {
+            console.log(`✅ Found matching friend item for user ${userId}`);
+            const statusIndicator = item.querySelector('.status');
+            const statusText = item.querySelector('.friend-info p');
+            
+            if (statusIndicator) {
+                console.log(`🎨 Updating status indicator class: ${isOnline ? 'online' : 'offline'}`);
+                statusIndicator.className = 'status ' + (isOnline ? 'online' : 'offline');
+            } else {
+                console.warn(`⚠️ Status indicator not found in friend item`);
+            }
+            
+            if (statusText) {
+                console.log(`📝 Updating status text: ${isOnline ? 'Đang hoạt động' : 'Offline'}`);
+                statusText.textContent = isOnline ? 'Đang hoạt động' : 'Offline';
+            } else {
+                console.warn(`⚠️ Status text element not found`);
+            }
+        }
+    });
+    
+    // Update in conversation list
+    const conversationItems = document.querySelectorAll('.conversation-item');
+    conversationItems.forEach(item => {
+        const convUserId = item.getAttribute('data-user-id');
+        if (convUserId && parseInt(convUserId) === userId) {
+            const statusIndicator = item.querySelector('.status');
+            if (statusIndicator) {
+                statusIndicator.className = 'status ' + (isOnline ? 'online' : 'offline');
+            }
+        }
+    });
+    
+    // Update in search results
+    const searchResultItems = document.querySelectorAll('.search-result-item');
+    searchResultItems.forEach(item => {
+        const searchUserId = item.getAttribute('data-user-id');
+        if (searchUserId && parseInt(searchUserId) === userId) {
+            const statusIndicator = item.querySelector('.status');
+            if (statusIndicator) {
+                statusIndicator.className = 'status ' + (isOnline ? 'online' : 'offline');
+            }
+        }
+    });
+    
+    // Update active chat header if this is the user we're chatting with
+    if (activeConversation && activeConversation.id === userId) {
+        console.log(`🎯 Updating active chat header for user ${userId}`);
+        
+        // Update status text
+        const chatUserStatus = document.querySelector('#chatUserStatus');
+        if (chatUserStatus) {
+            console.log(`📝 Updating chat header status text: ${isOnline ? 'Đang hoạt động' : 'Offline'}`);
+            chatUserStatus.textContent = isOnline ? 'Đang hoạt động' : 'Offline';
+        } else {
+            console.warn(`⚠️ #chatUserStatus element not found`);
+        }
+        
+        // Update status dot in chat header - try multiple selectors
+        let chatHeaderStatusDot = document.querySelector('.chat-header .online-status');
+        if (!chatHeaderStatusDot) {
+            chatHeaderStatusDot = document.querySelector('.chat-header .status');
+        }
+        
+        if (chatHeaderStatusDot) {
+            console.log(`🎨 Updating chat header status dot. Current classes: ${chatHeaderStatusDot.className}`);
+            // Remove all status-related classes first
+            chatHeaderStatusDot.classList.remove('online', 'offline', 'status');
+            // Add base class if needed
+            if (!chatHeaderStatusDot.classList.contains('online-status') && !chatHeaderStatusDot.classList.contains('status')) {
+                chatHeaderStatusDot.classList.add('status');
+            }
+            // Add online/offline class
+            chatHeaderStatusDot.classList.add(isOnline ? 'online' : 'offline');
+            console.log(`🎨 New classes: ${chatHeaderStatusDot.className}`);
+        } else {
+            console.warn(`⚠️ Status dot in chat header not found`);
+        }
+    } else {
+        console.log(`⏭️ User ${userId} is not active conversation (active: ${activeConversation?.id})`);
+    }
+    
+    // Reload friends list to re-sort by online status
+    if (window.loadFriends && typeof window.loadFriends === 'function') {
+        window.loadFriends();
+    }
+}
+
