@@ -39,7 +39,7 @@ services:
       - e5-net
     restart: unless-stopped
 
-  # Backend Server - Multiple instances for load balancing
+  # Backend Server - Single instance (scale with: docker-compose up -d --scale server=3)
   server:
     build:
       context: ..
@@ -68,9 +68,6 @@ services:
         condition: service_healthy
     networks:
       - e5-net
-    # Scale to 3 instances using: docker-compose up -d --scale server=3
-    deploy:
-      replicas: 3
 
   # Frontend (Static files served by Nginx)
   client:
@@ -126,16 +123,20 @@ services:
     networks:
       - e5-net
 
-  # optional k6 runner as service (useful for CI)
+  # K6 Load Testing (optional - run manually)
+  # To run load test: docker-compose run --rm k6
+  # or: docker run --rm -v ${PWD}/infra:/scripts loadimpact/k6 run /scripts/k6-script.js
   k6:
     image: loadimpact/k6
     container_name: e5-k6
     working_dir: /scripts
     volumes:
-      - ../infra:/scripts:ro
-    entrypoint: ["k6", "run", "/scripts/k6-script.js"]
+      - ./k6-script.js:/scripts/k6-script.js:ro
+    entrypoint: ["tail", "-f", "/dev/null"]  # Keep container alive, run tests manually
     networks:
       - e5-net
+    profiles:
+      - testing  # Only start when explicitly requested
 
 volumes:
   postgres_data:

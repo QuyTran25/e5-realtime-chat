@@ -236,17 +236,17 @@ function handleIncomingMessage(message) {
 
         case 'join':
             messageDiv.className = 'message system';
-            messageDiv.textContent = `✅ ${message.user} đã tham gia`;
+            // messageDiv.textContent = `✅ ${message.user} đã tham gia`;
             break;
 
         case 'leave':
             messageDiv.className = 'message system';
-            messageDiv.textContent = `👋 ${message.user} đã rời đi`;
+            // messageDiv.textContent = `👋 ${message.user} đã rời đi`;
             break;
 
         case 'data':
             messageDiv.className = 'message system';
-            messageDiv.textContent = `📊 Data: ${message.value}`;
+            // messageDiv.textContent = `📊 Data: ${message.value}`;
             break;
 
         default:

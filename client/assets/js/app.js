@@ -366,7 +366,7 @@ function renderFriends(friends) {
             <div class="friend-item" data-id="${friend.id}">
                 <div style="position: relative;">
                     <img src="${friend.avatar || friend.avatar_url || 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNDgiIGhlaWdodD0iNDgiIHZpZXdCb3g9IjAgMCAyNCAyNCIgZmlsbD0iIzZCNzI4MCIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj4KPHBhdGggZD0iTTEyIDEyYzIuMjEgMCA0LTEuNzkgNC00cy0xLjc5LTQtNC00LTQgMS43OS00IDQgMS43OSA0IDQgNHptMCAyYy0yLjY3IDAtOCAxLjM0LTggNHYyaDE2di0yYzAtMi42Ni01LjMzLTQtOC00eiIvPgo8L3N2Zz4K'}" alt="${friend.name || friend.username}" class="friend-avatar">
-                    ${isOnline ? '<span class="online-indicator" style="position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; background: #10B981; border: 2px solid white; border-radius: 50%;"></span>' : ''}
+                    ${isOnline ? '<span class="online-indicator" style="position: absolute; bottom: 2px; right: 2px; width: 12px; height: 12px; border-radius: 50%;"></span>' : ''}
                 </div>
                 <div class="friend-info">
                     <div class="friend-name">${friend.name || friend.username}</div>
@@ -583,7 +583,7 @@ function startChat(friendId, friendName, friendAvatar, isOnline) {
     });
 
     // Hiển thị thông báo nhỏ
-    showNotification(`💬 Đang trò chuyện với ${friendName}`);
+    // showNotification(`💬 Đang trò chuyện với ${friendName}`);
 }
 
 function viewProfile(userId) {

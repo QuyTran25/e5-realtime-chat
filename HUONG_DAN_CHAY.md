@@ -1,8 +1,11 @@
 # 🚀 HƯỚNG DẪN CHẠY PROJECT REALTIME CHAT
 
 ## 📦 Yêu cầu hệ thống
-- Docker Desktop đã cài đặt và đang chạy
+- **Docker Desktop** đã cài đặt và đang chạy (Windows/Mac/Linux)
 - Trình duyệt web (Chrome, Firefox, Edge...)
+- **Không** cần cài Go, PostgreSQL, Redis hay bất kỳ dependencies nào khác!
+
+> ✅ Docker sẽ tự động tải và cài đặt tất cả cho bạn!
 
 ---
 
@@ -29,10 +32,13 @@ docker-compose ps
 
 Bạn sẽ thấy các container sau đang chạy:
 - ✅ **e5-postgres** - PostgreSQL database (port 5432)
-- ✅ **e5-server** - Go WebSocket server (port 8080)
+- ✅ **e5-redis** - Redis cache (port 6379)
+- ✅ **e5-rabbitmq** - RabbitMQ message queue (ports 5672, 15672)
+- ✅ **e5-realtime-chat-server-1** - Go WebSocket server #1
+- ✅ **e5-loadbalancer** - Nginx load balancer (port 8080)
 - ✅ **e5-client** - Nginx web server (port 3000)
-- ✅ **e5-redis** - Redis cache
-- ✅ **e5-k6** - Load testing tool
+
+> 📝 **Lưu ý:** Tên container `server` có thể là `e5-realtime-chat-server-1` hoặc tương tự tùy thuộc vào Docker Compose version.
 
 ---
 
@@ -50,9 +56,15 @@ http://localhost:3000
 - 📝 Đăng ký: `http://localhost:3000/register.html`
 
 ### Backend API
-- 🔌 WebSocket endpoint: `ws://localhost:8080/ws`
+- 🔌 WebSocket endpoint: `ws://localhost:8080/ws` (qua load balancer)
 - 💚 Health check: `http://localhost:8080/healthz`
 - 👥 Friends API: `http://localhost:8080/api/friends`
+- 🔐 Auth API: `http://localhost:8080/api/auth/*`
+
+### RabbitMQ Management UI
+Truy cập: http://localhost:15672
+- Username: `chatuser`
+- Password: `chatpass`
 
 ### Database
 **Thông tin kết nối PostgreSQL:**
@@ -128,11 +140,17 @@ Database của bạn có các bảng sau (đã được tạo tự động từ 
 # Xem log database
 docker-compose logs postgres
 
-# Xem log server
+# Xem log server (có thể có nhiều instances)
 docker-compose logs server
+
+# Xem log load balancer
+docker-compose logs loadbalancer
 
 # Xem log client
 docker-compose logs client
+
+# Xem log rabbitmq
+docker-compose logs rabbitmq
 
 # Xem log real-time (theo dõi liên tục)
 docker-compose logs -f server

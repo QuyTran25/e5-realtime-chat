@@ -372,11 +372,11 @@ document.addEventListener("DOMContentLoaded", function () {
     chatInputContainer.style.display = "block";
 
     const welcomeMsg = document.createElement("div");
-    welcomeMsg.classList.add("system-message");
-    welcomeMsg.style.textAlign = "center";
-    welcomeMsg.style.padding = "20px";
-    welcomeMsg.style.color = "gray";
-    welcomeMsg.textContent = `💬 Đang trò chuyện với ${user.name || user.username}`;
+    // welcomeMsg.classList.add("system-message");
+    // welcomeMsg.style.textAlign = "center";
+    // welcomeMsg.style.padding = "20px";
+    // welcomeMsg.style.color = "gray";
+    // welcomeMsg.textContent = `💬 Đang trò chuyện với ${user.name || user.username}`;
     chatMessages.appendChild(welcomeMsg);
 
     // 🔥 GỌI setActiveConversation từ websocket.js để thiết lập chat riêng tư
