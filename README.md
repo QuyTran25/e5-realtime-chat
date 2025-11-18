@@ -668,7 +668,7 @@ e5-realtime-chat/
       <a href="https://github.com/QuyTran25">
         <img src="https://github.com/QuyTran25.png" width="100px;" alt="Quy Tran"/>
         <br />
-        <sub><b>Quy Tran</b></sub>
+        <sub><b>Huỳnh Thị Quý Trân</b></sub>
       </a>
       <br />
       <sub>Trưởng nhóm & Quản lý dự án</sub>
@@ -679,7 +679,7 @@ e5-realtime-chat/
       <a href="https://github.com/khain7728">
         <img src="https://github.com/khain7728.png" width="100px;" alt="Khai"/>
         <br />
-        <sub><b>Khai Nguyen</b></sub>
+        <sub><b>Nguyễn Quốc Khải</b></sub>
       </a>
       <br />
       <sub>Chức năng nhắn tin</sub>
@@ -688,7 +688,7 @@ e5-realtime-chat/
       <a href="https://github.com/akhoa79">
         <img src="https://github.com/akhoa79.png" width="100px;" alt="Khoa"/>
         <br />
-        <sub><b>Khoa Nguyen</b></sub>
+        <sub><b>Nguyễn Đỗ Anh Khoa</b></sub>
       </a>
       <br />
       <sub>Chức năng lời mời kết bạn</sub>
@@ -697,7 +697,7 @@ e5-realtime-chat/
       <a href="https://github.com/LeVietSangg">
         <img src="https://github.com/LeVietSangg.png" width="100px;" alt="Sang"/>
         <br />
-        <sub><b>Sang Le</b></sub>
+        <sub><b>Lê Viết Sang</b></sub>
       </a>
       <br />
       <sub>Chức năng tìm kiếm</sub>
@@ -708,7 +708,7 @@ e5-realtime-chat/
       <a href="https://github.com/Shinnie102">
         <img src="https://github.com/Shinnie102.png" width="100px;" alt="Shinnie"/>
         <br />
-        <sub><b>Shinnie</b></sub>
+        <sub><b>Nguyễn Thị Thùy Trang</b></sub>
       </a>
       <br />
       <sub>Chức năng xác thực</sub>
